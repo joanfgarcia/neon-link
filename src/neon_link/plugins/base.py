@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Callable, Awaitable
 from neon_link.models.base import Contact, Group, Message
+from neon_link.core.crypto import IdentityManager
 
 class NetworkPlugin(ABC):
     """
@@ -8,8 +9,9 @@ class NetworkPlugin(ABC):
     Un plugin debe implementar estos métodos para ser registrado en el Hub.
     """
     
-    def __init__(self, name: str):
+    def __init__(self, name: str, identity_manager: IdentityManager):
         self.name = name
+        self.identity_manager = identity_manager
         self._on_message_callback: Callable[[Message], Awaitable[None]] | None = None
 
     def register_callback(self, callback: Callable[[Message], Awaitable[None]]):

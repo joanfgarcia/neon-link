@@ -4,12 +4,15 @@ from neon_link.plugins.base import NetworkPlugin
 from neon_link.models.base import Message
 from neon_link.core.webhook import WebhookNotifier
 
+from neon_link.core.crypto import IdentityManager
+
 logger = logging.getLogger(__name__)
 
 class PluginManager:
-    def __init__(self, webhook_notifier: WebhookNotifier):
+    def __init__(self, webhook_notifier: WebhookNotifier, identity_manager: IdentityManager):
         self.plugins: Dict[str, NetworkPlugin] = {}
         self.webhook_notifier = webhook_notifier
+        self.identity_manager = identity_manager
 
     def register(self, plugin: NetworkPlugin):
         """Registra un plugin y le inyecta el callback de llegada de mensajes."""
