@@ -71,6 +71,11 @@ class FirebasePlugin(NetworkPlugin):
                                 sender_id=pkg.get("sender_id", "unknown"),
                                 content="<encrypted_content_placeholder>"
                             )
+                            # Encolar en el inbox local
+                            from neon_link.core.inbox import inbox
+                            inbox.push(agent_id, msg)
+                            
+                            # Disparar callback (opcional/legacy)
                             if self._on_message_callback:
                                 await self._on_message_callback(msg)
                             
