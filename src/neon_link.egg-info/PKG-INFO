@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: neon-link
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.136.1
+Requires-Dist: firebase-admin>=7.4.0
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: pure-mls
+Requires-Dist: pydantic>=2.13.3
+Requires-Dist: uvicorn>=0.46.0

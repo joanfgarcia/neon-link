@@ -1,0 +1,2 @@
+[console_scripts]
+neon-link = neon_link.cli:main
