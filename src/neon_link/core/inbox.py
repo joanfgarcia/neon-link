@@ -1,6 +1,7 @@
 import collections
-from typing import Dict, Deque
+
 from neon_link.models.base import Message
+
 
 class LocalInbox:
     """
@@ -8,12 +9,12 @@ class LocalInbox:
     Evita depender de Webhooks hacia el cliente. El cliente hace polling.
     """
     def __init__(self):
-        self.queues: Dict[str, Deque[Message]] = collections.defaultdict(collections.deque)
+        self.queues: dict[str, collections.deque[Message]] = collections.defaultdict(collections.deque)
         
     def push(self, agent_id: str, msg: Message):
         self.queues[agent_id].append(msg)
         
-    def summary(self) -> Dict[str, int]:
+    def summary(self) -> dict[str, int]:
         return {agent: len(q) for agent, q in self.queues.items()}
         
     def pop_all(self, agent_id: str) -> list[Message]:

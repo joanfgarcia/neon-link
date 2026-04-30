@@ -1,7 +1,6 @@
 import logging
 import os
 import stat
-from typing import Dict, Tuple
 
 from pure_mls.keys import KemKey, SignatureKey
 
@@ -13,8 +12,8 @@ class IdentityManager:
     Carga múltiples identidades (seeds) o genera una autónoma si no hay configuración.
     """
 
-    def __init__(self, seed_paths: list[str] = None, fallback_dir: str = "storage"):
-        self.identities: Dict[str, Tuple[KemKey, SignatureKey]] = {}
+    def __init__(self, seed_paths: list[str] | None = None, fallback_dir: str = "storage"):
+        self.identities: dict[str, tuple[KemKey, SignatureKey]] = {}
         self.fallback_dir = fallback_dir
         
         if not seed_paths:
@@ -73,5 +72,5 @@ class IdentityManager:
         
         self.load_identity(fallback_path)
 
-    def get_identities(self) -> Dict[str, Tuple[KemKey, SignatureKey]]:
+    def get_identities(self) -> dict[str, tuple[KemKey, SignatureKey]]:
         return self.identities

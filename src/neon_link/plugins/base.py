@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List, Callable, Awaitable
-from neon_link.models.base import Contact, Group, Message
+from collections.abc import Awaitable, Callable
+
 from neon_link.core.crypto import IdentityManager
+from neon_link.models.base import Group, Message
+
 
 class NetworkPlugin(ABC):
     """

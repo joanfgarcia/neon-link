@@ -1,14 +1,13 @@
 import asyncio
 import logging
-from typing import Dict, Any
 
 import firebase_admin
 from firebase_admin import credentials, db
 from pure_mls.group import MLSGroup
 
-from neon_link.plugins.base import NetworkPlugin
-from neon_link.models.base import Group, Message
 from neon_link.core.crypto import IdentityManager
+from neon_link.models.base import Group, Message
+from neon_link.plugins.base import NetworkPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +22,8 @@ class FirebasePlugin(NetworkPlugin):
         self.db_url = db_url
         self.credential_path = credential_path
         self._running = False
-        self._polling_tasks = []
-        self.mls_groups: Dict[str, MLSGroup] = {}
+        self._polling_tasks: list[asyncio.Task] = []
+        self.mls_groups: dict[str, MLSGroup] = {}
 
     async def start(self):
         logger.info("[FirebasePlugin] Inicializando SDK de Firebase...")

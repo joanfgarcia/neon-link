@@ -1,7 +1,8 @@
+
 from fastapi import FastAPI
-from typing import List, Dict
-from neon_link.models.base import Contact, Group, Message
+
 from neon_link.core.inbox import inbox
+from neon_link.models.base import Contact, Group, Message
 
 app = FastAPI(
     title="Neon-Link",
@@ -9,17 +10,17 @@ app = FastAPI(
     version="0.1.0"
 )
 
-@app.get("/inbox/summary", response_model=Dict[str, int])
+@app.get("/inbox/summary", response_model=dict[str, int])
 async def get_inbox_summary():
     """Retorna un recuento de los mensajes en cola para cada agente (Optimizado para el Heartbeat)."""
     return inbox.summary()
 
-@app.get("/inbox/{agent_id}", response_model=List[Message])
+@app.get("/inbox/{agent_id}", response_model=list[Message])
 async def get_agent_inbox(agent_id: str):
     """Retorna todos los mensajes de un agente y limpia la cola local."""
     return inbox.pop_all(agent_id)
 
-@app.get("/contacts", response_model=List[Contact])
+@app.get("/contacts", response_model=list[Contact])
 async def get_contacts():
     """Obtener la agenda de contactos sincronizada."""
     return []

@@ -1,16 +1,15 @@
 import logging
-from typing import Dict
-from neon_link.plugins.base import NetworkPlugin
-from neon_link.models.base import Message
-from neon_link.core.webhook import WebhookNotifier
 
 from neon_link.core.crypto import IdentityManager
+from neon_link.core.webhook import WebhookNotifier
+from neon_link.models.base import Message
+from neon_link.plugins.base import NetworkPlugin
 
 logger = logging.getLogger(__name__)
 
 class PluginManager:
     def __init__(self, webhook_notifier: WebhookNotifier, identity_manager: IdentityManager):
-        self.plugins: Dict[str, NetworkPlugin] = {}
+        self.plugins: dict[str, NetworkPlugin] = {}
         self.webhook_notifier = webhook_notifier
         self.identity_manager = identity_manager
 

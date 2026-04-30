@@ -1,5 +1,6 @@
 import uvicorn
 
+
 def main():
     """Entry point multiplataforma para Neon-Link."""
     print("Iniciando Neon-Link (Cross-Platform)...")
