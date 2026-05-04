@@ -8,7 +8,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-from db import get_connection
+from neon_link.db import get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -123,24 +123,17 @@ class TelegramHub:
                 logger.error(f"Outbox polling error: {e}")
                 time.sleep(5)
 
-    def run(self):
-        t1 = threading.Thread(target=self.poll_telegram)
-        t2 = threading.Thread(target=self.poll_outbox)
-        t1.daemon = True
-        t2.daemon = True
-        t1.start()
-        t2.start()
-        
-        try:
-            while self.running:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Shutting down Telegram Hub...")
-            self.running = False
-            t1.join()
-            t2.join()
+    def start_threads(self):
+        self.t1 = threading.Thread(target=self.poll_telegram)
+        self.t2 = threading.Thread(target=self.poll_outbox)
+        self.t1.daemon = True
+        self.t2.daemon = True
+        self.t1.start()
+        self.t2.start()
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    hub = TelegramHub()
-    hub.run()
+    def stop_threads(self):
+        self.running = False
+        if hasattr(self, 't1'):
+            self.t1.join(timeout=2.0)
+        if hasattr(self, 't2'):
+            self.t2.join(timeout=2.0)
