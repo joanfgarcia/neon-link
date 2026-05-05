@@ -88,14 +88,29 @@ class FirebaseHub:
                             logger.info(f"[FirebaseHub] Received encrypted message {msg_id}")
                             plaintext = self.decrypt_payload(group_id, pkg["ciphertext"])
                             
+                            # Extract Routing Policy from decrypted JSON
+                            try:
+                                decoded = json.loads(plaintext)
+                                text = decoded.get("text", plaintext)
+                                group_size = decoded.get("group_size", 100) # Assumes massive if missing
+                                priority = decoded.get("priority", "normal")
+                            except Exception:
+                                text = plaintext
+                                group_size = 100
+                                priority = "normal"
+                                
+                            mode = "background"
+                            if group_size <= 2 and priority == "critical":
+                                mode = "conversational"
+                            
                             # Insert into local SQLite WAL
-                            payload = json.dumps({"text": plaintext, "sender_id": sender_id})
+                            payload = json.dumps({"text": text, "sender_id": sender_id, "mode": mode})
                             
                             conn.execute(
                                 "INSERT INTO inbox (channel, channel_user_id, payload) VALUES (?, ?, ?)",
                                 ("firebase", sender_id, payload)
                             )
-                            logger.info(f"[FirebaseHub] Enqueued message from {sender_id} to local DB.")
+                            logger.info(f"[FirebaseHub] Enqueued {mode} message from {sender_id} to local DB.")
                             
                         # Delete message from Firebase once enqueued
                         ref.child(msg_id).delete()

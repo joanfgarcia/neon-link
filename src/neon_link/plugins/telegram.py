@@ -41,6 +41,7 @@ class TelegramHub:
 
     def handle_message(self, message):
         chat_id = str(message['chat']['id'])
+        chat_type = message['chat'].get('type', 'private')
         text = message.get('text', '')
 
         if chat_id != ALLOWED_USER_ID and ALLOWED_USER_ID != "REPLACE_ME":
@@ -52,17 +53,27 @@ class TelegramHub:
             return
 
         if text.startswith("/list"):
-            payload = json.dumps({"command": "LIST_CASCADES"})
+            payload = json.dumps({"command": "LIST_CASCADES", "mode": "conversational"})
             self.send_message(chat_id, "🔍 Buscando sesiones activas en el Córtex...")
         elif text.startswith("/switch "):
             parts = text.split(" ")
             if len(parts) == 2 and parts[1].isdigit():
-                payload = json.dumps({"command": "SWITCH_CASCADE", "index": int(parts[1])})
+                payload = json.dumps({"command": "SWITCH_CASCADE", "index": int(parts[1]), "mode": "conversational"})
             else:
                 self.send_message(chat_id, "❌ Uso: /switch <número>")
                 return
         else:
-            payload = json.dumps({"text": text})
+            # Routing Policy Engine
+            bot_username = os.environ.get("TELEGRAM_BOT_USERNAME", "")
+            mode = "conversational" if chat_type == "private" else "background"
+            
+            if text.startswith("/bg "):
+                mode = "background"
+                text = text[4:].strip()
+            elif chat_type in ["group", "supergroup"] and bot_username and f"@{bot_username}" in text:
+                mode = "conversational"
+                
+            payload = json.dumps({"text": text, "mode": mode})
 
         # Check health
         if not self.check_red_pill_health():
