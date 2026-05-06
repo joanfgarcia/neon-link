@@ -20,7 +20,7 @@ To run Neon-Link locally and securely (bound to `127.0.0.1:8770`):
 ./start.sh
 ```
 
-For more details, check our [Usage Guide](docs/guides/usage.md) and [Examples](docs/examples/curl_examples.md).
+For more details, check our [Usage Guide](docs/GUIDES/USAGE.md) and [Examples](docs/EXAMPLES/CURL_EXAMPLES.md).
 
 ---
 
@@ -40,4 +40,4 @@ Para levantar Neon-Link localmente de forma segura (mapeado a `127.0.0.1:8770`):
 ./start.sh
 ```
 
-Para más detalles, consulta nuestra [Guía de Uso](docs/guides/usage.md) y los [Ejemplos](docs/examples/curl_examples.md).
+Para más detalles, consulta nuestra [Guía de Uso](docs/GUIDES/USAGE.md) y los [Ejemplos](docs/EXAMPLES/CURL_EXAMPLES.md).

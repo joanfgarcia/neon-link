@@ -1,7 +1,5 @@
 import os
-import json
 import time
-import sqlite3
 import threading
 import logging
 import asyncio
@@ -9,175 +7,122 @@ import asyncio
 import firebase_admin
 from firebase_admin import credentials, db
 
-# Assuming pure_mls is installed and configured somewhere in the system
-# We will mock the pure_mls usage as per the previous file's structure if it's not fully ready,
-# but we'll include the hooks for it.
-from pure_mls.group import MLSGroup
-
-from neon_link.db import get_connection
+from neon_link.core.crypto import IdentityManager
+from neon_link.models.network import NetworkEvent
+from neon_link.plugins.base import NetworkPlugin
 
 logger = logging.getLogger(__name__)
 
-class FirebaseHub:
-    def __init__(self):
-        self.running = True
-        self.db_url = os.environ.get("FIREBASE_DB_URL", "https://replace-me.firebaseio.com")
-        self.credential_path = os.environ.get("FIREBASE_CREDENTIALS", "firebase-keys.json")
-        self.agent_id = os.environ.get("NEON_LINK_AGENT_ID", "red_pill_core")
-        self.mls_groups = {} # Dictionary mapping group_id -> MLSGroup
-        
-        logger.info("[FirebaseHub] Initializing Firebase SDK...")
-        try:
-            firebase_admin.get_app("neon_link")
-        except ValueError:
-            try:
-                cred = credentials.Certificate(self.credential_path)
-                firebase_admin.initialize_app(cred, {"databaseURL": self.db_url}, name="neon_link")
-            except Exception as e:
-                logger.error(f"Failed to load Firebase credentials from {self.credential_path}: {e}")
-                
-        try:
-            self.app = firebase_admin.get_app("neon_link")
-        except ValueError:
-            self.app = None
+class FirebaseHub(NetworkPlugin):
+	"""
+	Firebase Transport Plugin (Dumb Layer).
+	Only handles Firebase RTDB logic, push/pull bytes. No Crypto logic.
+	"""
+	def __init__(self, identity_manager: IdentityManager):
+		super().__init__("firebase", identity_manager)
+		self.running = False
+		self.db_url = os.environ.get("FIREBASE_DB_URL", "https://replace-me.firebaseio.com")
+		self.credential_path = os.environ.get("FIREBASE_CREDENTIALS", "firebase-keys.json")
+		self.agent_id = os.environ.get("NEON_LINK_AGENT_ID", "red_pill_core")
+		
+		logger.info("[FirebaseHub] Initializing Firebase SDK...")
+		try:
+			firebase_admin.get_app("neon_link")
+		except ValueError:
+			try:
+				cred = credentials.Certificate(self.credential_path)
+				firebase_admin.initialize_app(cred, {"databaseURL": self.db_url}, name="neon_link")
+			except Exception as e:
+				logger.error(f"Failed to load Firebase credentials from {self.credential_path}: {e}")
+				
+		try:
+			self.app = firebase_admin.get_app("neon_link")
+		except ValueError:
+			self.app = None
 
-    def decrypt_payload(self, group_id, ciphertext):
-        """Decrypts the E2E payload using pure-mls."""
-        if group_id not in self.mls_groups:
-            logger.warning(f"[FirebaseHub] Unknown MLS group {group_id}. Cannot decrypt. Returning raw.")
-            return ciphertext
-        try:
-            # Placeholder for actual MLS decrypt
-            # plaintext = self.mls_groups[group_id].decrypt_application_message(ciphertext)
-            return ciphertext # Fallback for now until MLS groups are persisted
-        except Exception as e:
-            logger.error(f"Decryption failed: {e}")
-            return ciphertext
+	async def fetch_key_package(self, agent_id: str) -> bytes | None:
+		"""Fetch remote KeyPackage via Firebase"""
+		if not self.app: return None
+		ref = db.reference(f"public_keys/{agent_id}", app=self.app)
+		data = ref.get()
+		if data and "key_package" in data:
+			return bytes.fromhex(data["key_package"])
+		return None
 
-    def encrypt_payload(self, group_id, plaintext):
-        """Encrypts the payload using pure-mls before sending to Firebase."""
-        if group_id not in self.mls_groups:
-            logger.warning(f"[FirebaseHub] Unknown MLS group {group_id}. Cannot encrypt. Sending raw.")
-            return plaintext
-        try:
-            # Placeholder for actual MLS encrypt
-            # ciphertext = self.mls_groups[group_id].encrypt_application_message(plaintext)
-            return plaintext # Fallback
-        except Exception as e:
-            logger.error(f"Encryption failed: {e}")
-            return plaintext
+	def publish_my_key_package(self, kp_bytes: bytes):
+		if not self.app: return
+		try:
+			ref = db.reference(f"public_keys/{self.agent_id}", app=self.app)
+			ref.set({"key_package": kp_bytes.hex()})
+			logger.info(f"[FirebaseHub] Published KeyPackage to Firebase for {self.agent_id}")
+		except Exception as e:
+			logger.error(f"Failed to publish KeyPackage: {e}")
 
-    def poll_firebase(self):
-        logger.info("[FirebaseHub] Started Firebase Ingress Polling...")
-        while self.running:
-            if not self.app:
-                logger.error("Firebase App not initialized. Exiting Ingress loop.")
-                break
-                
-            try:
-                ref = db.reference(f"mailboxes/{self.agent_id}/inbox", app=self.app)
-                messages = ref.get()
-                
-                if messages:
-                    conn = get_connection()
-                    for msg_id, pkg in messages.items():
-                        group_id = pkg.get("group_id", "unknown")
-                        sender_id = pkg.get("sender_id", "unknown")
-                        
-                        if "ciphertext" in pkg:
-                            logger.info(f"[FirebaseHub] Received encrypted message {msg_id}")
-                            plaintext = self.decrypt_payload(group_id, pkg["ciphertext"])
-                            
-                            # Extract Routing Policy from decrypted JSON
-                            try:
-                                decoded = json.loads(plaintext)
-                                text = decoded.get("text", plaintext)
-                                group_size = decoded.get("group_size", 100) # Assumes massive if missing
-                                priority = decoded.get("priority", "normal")
-                            except Exception:
-                                text = plaintext
-                                group_size = 100
-                                priority = "normal"
-                                
-                            mode = "background"
-                            if group_size <= 2 and priority == "critical":
-                                mode = "conversational"
-                            
-                            # Insert into local SQLite WAL
-                            payload = json.dumps({"text": text, "sender_id": sender_id, "mode": mode})
-                            
-                            conn.execute(
-                                "INSERT INTO inbox (channel, channel_user_id, payload) VALUES (?, ?, ?)",
-                                ("firebase", sender_id, payload)
-                            )
-                            logger.info(f"[FirebaseHub] Enqueued {mode} message from {sender_id} to local DB.")
-                            
-                        # Delete message from Firebase once enqueued
-                        ref.child(msg_id).delete()
-                        
-                    conn.commit()
-                    conn.close()
-                    
-            except Exception as e:
-                logger.error(f"[FirebaseHub] Polling error: {e}")
-                
-            time.sleep(2.0)
+	async def start(self):
+		self.running = True
+		self.t1 = threading.Thread(target=self._poll_firebase)
+		self.t1.daemon = True
+		self.t1.start()
 
-    def poll_outbox(self):
-        logger.info("[FirebaseHub] Started Firebase Egress Polling...")
-        while self.running:
-            if not self.app:
-                break
-                
-            try:
-                conn = get_connection()
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM outbox WHERE status = 'PENDING' AND channel = 'firebase' ORDER BY created_at ASC")
-                rows = cursor.fetchall()
-                
-                for row in rows:
-                    payload = json.loads(row['payload'])
-                    text = payload.get("text", "No text provided")
-                    recipient_id = row['channel_user_id']
-                    
-                    # Assume group_id is somehow mapped or we use recipient_id
-                    group_id = recipient_id 
-                    ciphertext = self.encrypt_payload(group_id, text)
-                    
-                    # Push to Firebase recipient's inbox
-                    try:
-                        out_ref = db.reference(f"mailboxes/{recipient_id}/inbox", app=self.app)
-                        out_ref.push({
-                            "sender_id": self.agent_id,
-                            "group_id": group_id,
-                            "ciphertext": ciphertext,
-                            "timestamp": time.time()
-                        })
-                        
-                        cursor.execute("UPDATE outbox SET status = 'SENT' WHERE id = ?", (row['id'],))
-                        logger.info(f"[FirebaseHub] Sent reply to Firebase: {row['id']}")
-                    except Exception as push_err:
-                        logger.error(f"[FirebaseHub] Failed to push to Firebase: {push_err}")
-                    
-                conn.commit()
-                conn.close()
-            except Exception as e:
-                logger.error(f"[FirebaseHub] Outbox polling error: {e}")
-                
-            time.sleep(1.0)
+	async def stop(self):
+		self.running = False
+		if hasattr(self, 't1'):
+			self.t1.join(timeout=2.0)
 
-    def start_threads(self):
-        self.t1 = threading.Thread(target=self.poll_firebase)
-        self.t2 = threading.Thread(target=self.poll_outbox)
-        self.t1.daemon = True
-        self.t2.daemon = True
-        self.t1.start()
-        self.t2.start()
+	async def send_event(self, event: NetworkEvent) -> bool:
+		"""Route the binary event to the external network."""
+		if not self.app: return False
+		try:
+			# We route everything to the recipient's inbox for now to mimic the P2P swarm model
+			# In a full group setup, we might write to mailboxes/{group_id}/messages
+			out_ref = db.reference(f"mailboxes/{event.recipient_id}/inbox", app=self.app)
+				
+			out_ref.push({
+				"sender_id": self.agent_id,
+				"mls_type": event.type,
+				"payload": event.payload.hex(),
+				"timestamp": time.time()
+			})
+			logger.info(f"[FirebaseHub] Sent {event.type} to {event.recipient_id}")
+			return True
+		except Exception as e:
+			logger.error(f"[FirebaseHub] Failed to push event: {e}")
+			return False
 
-    def stop_threads(self):
-        self.running = False
-        if hasattr(self, 't1'):
-            self.t1.join(timeout=2.0)
-        if hasattr(self, 't2'):
-            self.t2.join(timeout=2.0)
+	def _poll_firebase(self):
+		logger.info("[FirebaseHub] Started Firebase Ingress Polling...")
+		loop = asyncio.new_event_loop()
+		asyncio.set_event_loop(loop)
+		
+		while self.running:
+			if not self.app:
+				break
+				
+			try:
+				# Read private inbox
+				inbox_ref = db.reference(f"mailboxes/{self.agent_id}/inbox", app=self.app)
+				messages = inbox_ref.get()
+				
+				if messages and self._on_event_callback:
+					for msg_id, pkg in messages.items():
+						sender_id = pkg.get("sender_id", "unknown")
+						mls_type = pkg.get("mls_type", "application")
+						payload_hex = pkg.get("payload", pkg.get("ciphertext", pkg.get("content", "")))
+						
+						# Fallback for old group_id format if present
+						recipient_id = pkg.get("group_id", self.agent_id)
+						
+						if payload_hex:
+							event = NetworkEvent(
+								type=mls_type,
+								recipient_id=recipient_id,
+								payload=bytes.fromhex(payload_hex)
+							)
+							# Dispatch to Crypto Pipeline
+							loop.run_until_complete(self._on_event_callback(self.name, sender_id, event))
+							
+						inbox_ref.child(msg_id).delete()
+			except Exception as e:
+				logger.error(f"[FirebaseHub] Polling error: {e}")
+				
+			time.sleep(2.0)

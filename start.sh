@@ -6,5 +6,8 @@
 HOST="127.0.0.1"
 PORT="8770"
 
-echo "Iniciando Neon-Link en $HOST:$PORT..."
-uv run uvicorn neon_link.api.server:app --host $HOST --port $PORT --reload
+echo "Iniciando Neon-Link Daemon (Polling)..."
+/home/joan/.local/bin/uv run python src/neon_link/cli.py &
+
+echo "Iniciando Neon-Link API en $HOST:$PORT..."
+/home/joan/.local/bin/uv run uvicorn neon_link.api.server:app --host $HOST --port $PORT --reload
