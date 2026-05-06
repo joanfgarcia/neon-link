@@ -49,8 +49,8 @@ async def test_process_egress_auto_create_group(identity_manager_mock, plugin_mo
 	success = await pipeline.process_egress(plugin_mock, "remote_agent", "Hello Crypto!")
 
 	assert success is True
-	# Should send two events: one welcome, one application
-	assert plugin_mock.send_event.call_count == 2
+	# Should send three events: one welcome, one update (epoch ratcheting), one application
+	assert plugin_mock.send_event.call_count == 3
 
 
 @pytest.mark.asyncio
@@ -78,14 +78,18 @@ async def test_process_ingress_plaintext(mock_get_connection, identity_manager_m
 	mock_conn = MagicMock()
 	mock_get_connection.return_value = mock_conn
 
+	mock_cursor = MagicMock()
+	mock_cursor.rowcount = 1
+	mock_conn.execute.return_value = mock_cursor
+
 	event = NetworkEvent(type="application", recipient_id="test_agent", payload=b"Plaintext data")
 	await pipeline.process_ingress(plugin_mock, "sender123", event)
 
 	# Verify enqueue
 	mock_conn.execute.assert_called_once()
 	sql, params = mock_conn.execute.call_args[0]
-	assert "INSERT INTO inbox" in sql
-	assert "Plaintext data" in params[2]
+	assert "INSERT OR IGNORE INTO inbox" in sql
+	assert "Plaintext data" in params[3]
 
 
 @pytest.mark.asyncio
@@ -105,13 +109,16 @@ async def test_process_ingress_encrypted(mock_get_connection, identity_manager_m
 	event = NetworkEvent(type="application", recipient_id="test_agent", payload=b"Encrypted data")
 
 	mock_conn = MagicMock()
+	mock_cursor = MagicMock()
+	mock_cursor.rowcount = 1
+	mock_conn.execute.return_value = mock_cursor
 	mock_get_connection.return_value = mock_conn
 
 	await pipeline.process_ingress(plugin_mock, "sender123", event)
 
 	mock_conn.execute.assert_called()
-	inbox_call = next(call for call in mock_conn.execute.call_args_list if "INSERT INTO inbox" in call[0][0])
-	assert "Decrypted data" in inbox_call[0][1][2]
+	inbox_call = next(call for call in mock_conn.execute.call_args_list if "INSERT OR IGNORE INTO inbox" in call[0][0])
+	assert "Decrypted data" in inbox_call[0][1][3]
 
 
 @patch("neon_link.core.middleware.get_connection")
@@ -193,6 +200,7 @@ async def test_process_egress_error(identity_manager_mock, plugin_mock):
 	group = MagicMock()
 	group.encrypt_application_message.side_effect = Exception("err")
 	pipeline._get_group_state = MagicMock(return_value=group)
+	group.update_key.return_value = (group, MagicMock())
 	assert await pipeline.process_egress(plugin_mock, "user1", "payload") is False
 
 

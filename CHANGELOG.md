@@ -16,6 +16,9 @@ All notable changes to this project will be documented in this file.
 - **SQLite Concurrency Hardening (P1 Audit Fix)**
   - Configured `get_connection()` with `timeout=30.0`, `isolation_level='IMMEDIATE'`, and `PRAGMA busy_timeout=5000` to prevent `database is locked` errors during high-frequency Swarm polling.
   - Added `@with_retry` decorator in `db.py` for defense-in-depth transaction management.
+- **Egress Polling Unification (P1 Audit Fix)**
+  - Refactored `TelegramHub` to subclass `NetworkPlugin`.
+  - Removed duplicate `poll_outbox` thread in Telegram, allowing `PluginManager`'s main loop to handle all outbound traffic synchronously via `CryptoPipeline`.
 
 ### Changed
 - Updated `scripts/prepare_audit.sh` to correctly compile the `NEON_LINK_DIGEST.txt` payload for LLM audits.
