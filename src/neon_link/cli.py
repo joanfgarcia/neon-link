@@ -26,7 +26,8 @@ def main():
 	from neon_link.core.manager import PluginManager
 	
 	id_mgr = IdentityManager()
-	wh_notifier = WebhookNotifier()
+	wh_url = os.environ.get("WEBHOOK_URL", "http://localhost:8000/webhook")
+	wh_notifier = WebhookNotifier(wh_url)
 	manager = PluginManager(wh_notifier, id_mgr, agent_id)
 	
 	if enable_telegram:

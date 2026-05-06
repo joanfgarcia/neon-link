@@ -31,3 +31,19 @@ def test_get_agent_inbox():
 	
 	# La cola debe quedar vacía
 	assert len(inbox.queues["Beta"]) == 0
+
+def test_dummy_endpoints():
+	response = client.get("/contacts")
+	assert response.status_code == 200
+	
+	response = client.post("/groups", json={"group_id": "g1", "name": "Test", "members": []})
+	assert response.status_code == 200
+	
+	response = client.post("/groups/g1/members?user_id=u1")
+	assert response.status_code == 200
+	
+	response = client.delete("/groups/g1/members/u1")
+	assert response.status_code == 200
+	
+	response = client.post("/groups/g1/messages", json={"message_id": "m1", "timestamp": 0.0, "group_id": "g1", "sender_id": "s1", "content": "hello"})
+	assert response.status_code == 200

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# Pure-MLS Certification Preparation Script
+# Neon-Link Certification Preparation Script
 # Combines all relevant code into a single digest file for LLM Auditors (Claude/DeepSeek).
 
-OUTPUT_FILE="PURE_MLS_DIGEST.txt"
+OUTPUT_FILE="NEON_LINK_DIGEST.txt"
 
-echo "Creating Pure-MLS Certification Digest..."
+echo "Creating Neon-Link Certification Digest..."
 > "$OUTPUT_FILE"
 
 append_file() {
@@ -32,7 +32,7 @@ find docs -type f -name "*.md" -not -path "*/CERTIFICATION/*" 2>/dev/null | sort
 done
 
 # Core Library
-find src/pure_mls -type f -name "*.py" | sort | while read -r line; do
+find src/neon_link -type f -name "*.py" | sort | while read -r line; do
 	append_file "$line"
 done
 
