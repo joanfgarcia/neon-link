@@ -19,6 +19,15 @@ All notable changes to this project will be documented in this file.
 - **Egress Polling Unification (P1 Audit Fix)**
   - Refactored `TelegramHub` to subclass `NetworkPlugin`.
   - Removed duplicate `poll_outbox` thread in Telegram, allowing `PluginManager`'s main loop to handle all outbound traffic synchronously via `CryptoPipeline`.
+- **E2EE Deduplication & State Hardening (P2 Audit Fix)**
+  - Added `message_id` with `UNIQUE` constraint to SQLite `inbox` & `outbox` via `db.py`.
+  - Modified `CryptoPipeline` to deduplicate ingress using SHA-256 hash `INSERT OR IGNORE`.
+  - Implemented Epoch ratcheting: Egress now explicitly generates and sends `group.update_key()` Commit payloads before Application messages to enforce Forward Secrecy.
+- **Telegram Environment Sanitization (P2 Audit Fix)**
+  - Removed insecure "REPLACE_ME" hardcoded fallback values for Telegram credentials.
+- **Observability & Network Resilience (P3 Audit Fix)**
+  - Added `/health` FastAPI endpoint to monitor broker status and SQLite connectivity.
+  - Implemented Exponential Backoff in Firebase polling loop to prevent network storming on jitter/timeouts.
 
 ### Changed
 - Updated `scripts/prepare_audit.sh` to correctly compile the `NEON_LINK_DIGEST.txt` payload for LLM audits.

@@ -1,9 +1,22 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from neon_link.core.inbox import inbox
+from neon_link.db import get_connection
 from neon_link.models.base import Contact, Group, Message
 
 app = FastAPI(title="Neon-Link", description="Agnostic Communication Hub", version="0.1.0")
+
+
+@app.get("/health")
+async def health_check():
+	"""Health check endpoint to verify database connectivity and broker status."""
+	try:
+		conn = get_connection()
+		conn.execute("SELECT 1")
+		conn.close()
+		return {"status": "ok", "service": "neon_link"}
+	except Exception as e:
+		raise HTTPException(status_code=503, detail=f"Database connection failed: {e}") from e
 
 
 @app.get("/inbox/summary", response_model=dict[str, int])

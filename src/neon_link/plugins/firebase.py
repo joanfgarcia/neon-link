@@ -93,6 +93,9 @@ class FirebaseHub(NetworkPlugin):
 		logger.info("[FirebaseHub] Started Firebase Ingress Polling...")
 		loop = asyncio.new_event_loop()
 		asyncio.set_event_loop(loop)
+		
+		error_backoff = 2.0
+		max_backoff = 30.0
 
 		while self.running:
 			if not self.app:
@@ -115,10 +118,12 @@ class FirebaseHub(NetworkPlugin):
 						if payload_hex:
 							event = NetworkEvent(type=mls_type, recipient_id=recipient_id, payload=bytes.fromhex(payload_hex))
 							# Dispatch to Crypto Pipeline
-							loop.run_until_complete(self._on_event_callback(self.name, sender_id, event))
+							loop.run_until_complete(self._on_event_callback(self, sender_id, event))  # type: ignore
 
 						inbox_ref.child(msg_id).delete()
+				error_backoff = 2.0  # Reset backoff on success
+				time.sleep(2.0)
 			except Exception as e:
-				logger.error(f"[FirebaseHub] Polling error: {e}")
-
-			time.sleep(2.0)
+				logger.error(f"[FirebaseHub] Polling error: {e}. Retrying in {error_backoff}s...")
+				time.sleep(error_backoff)
+				error_backoff = min(error_backoff * 2, max_backoff)
