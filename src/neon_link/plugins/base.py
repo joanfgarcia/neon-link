@@ -4,13 +4,14 @@ from collections.abc import Awaitable, Callable
 from neon_link.core.crypto import IdentityManager
 from neon_link.models.network import NetworkEvent
 
+
 class NetworkPlugin(ABC):
 	"""
 	Interfaz abstracta (Contrato) para cualquier proveedor de red (Pipeline Pattern).
 	El plugin es 'tonto': solo sabe rutear NetworkEvents hacia la red física y viceversa,
 	además de buscar llaves públicas.
 	"""
-	
+
 	def __init__(self, name: str, identity_manager: IdentityManager):
 		self.name = name
 		self.identity_manager = identity_manager

@@ -37,7 +37,10 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM"]
-ignore = ["E501"]
+ignore = ["E501", "W191"]
+
+[tool.ruff.format]
+indent-style = "tab"
 
 [tool.mypy]
 python_version = "3.12"

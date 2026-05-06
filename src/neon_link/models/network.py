@@ -1,5 +1,7 @@
-from pydantic import BaseModel
 from typing import Literal
+
+from pydantic import BaseModel
+
 
 class NetworkEvent(BaseModel):
 	"""
@@ -8,6 +10,7 @@ class NetworkEvent(BaseModel):
 	- recipient_id: The target destination. If type is 'welcome', this is a user ID. Otherwise, a group ID.
 	- payload: The raw bytes to transmit.
 	"""
+
 	type: Literal["application", "welcome", "update"]
 	recipient_id: str
 	payload: bytes

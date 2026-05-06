@@ -1,17 +1,19 @@
 Metadata-Version: 2.4
 Name: neon-link
-Version: 0.1.0
+Version: 0.2.0
 Summary: Add your description here
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: fastapi>=0.136.1
 Requires-Dist: firebase-admin>=7.4.0
 Requires-Dist: httpx>=0.28.1
-Requires-Dist: pure-mls
+Requires-Dist: pure-mls>=3.0.5.1
 Requires-Dist: pydantic>=2.13.3
 Requires-Dist: python-dotenv>=1.2.2
 Requires-Dist: requests>=2.33.1
 Requires-Dist: uvicorn>=0.46.0
+Dynamic: license-file
 
 # Neon-Link 🌐
 
@@ -35,7 +37,7 @@ To run Neon-Link locally and securely (bound to `127.0.0.1:8770`):
 ./start.sh
 ```
 
-For more details, check our [Usage Guide](docs/guides/usage.md) and [Examples](docs/examples/curl_examples.md).
+For more details, check our [Usage Guide](docs/GUIDES/USAGE.md) and [Examples](docs/EXAMPLES/CURL_EXAMPLES.md).
 
 ---
 
@@ -55,4 +57,4 @@ Para levantar Neon-Link localmente de forma segura (mapeado a `127.0.0.1:8770`):
 ./start.sh
 ```
 
-Para más detalles, consulta nuestra [Guía de Uso](docs/guides/usage.md) y los [Ejemplos](docs/examples/curl_examples.md).
+Para más detalles, consulta nuestra [Guía de Uso](docs/GUIDES/USAGE.md) y los [Ejemplos](docs/EXAMPLES/CURL_EXAMPLES.md).

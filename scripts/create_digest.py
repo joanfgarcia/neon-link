@@ -2,7 +2,7 @@ import os
 import sys
 
 
-def create_digest(repo_path: str, output_file: str, ignore_dirs: list[str] = None):
+def create_digest(repo_path: str, output_file: str, ignore_dirs: list[str] | None = None):
 	if ignore_dirs is None:
 		ignore_dirs = [
 			".git",
@@ -20,10 +20,7 @@ def create_digest(repo_path: str, output_file: str, ignore_dirs: list[str] = Non
 		]
 
 	def is_ignored(path):
-		for ignore in ignore_dirs:
-			if ignore in path.split(os.sep):
-				return True
-		return False
+		return any(ignore in path.split(os.sep) for ignore in ignore_dirs)
 
 	with open(output_file, "w", encoding="utf-8") as outfile:
 		# 1. Write the source code
@@ -42,7 +39,7 @@ def create_digest(repo_path: str, output_file: str, ignore_dirs: list[str] = Non
 
 					outfile.write(f"--- BEGIN FILE: {relpath} ---\n")
 					try:
-						with open(filepath, "r", encoding="utf-8") as infile:
+						with open(filepath, encoding="utf-8") as infile:
 							outfile.write(infile.read())
 					except Exception as e:
 						outfile.write(f"Error reading file: {e}\n")
