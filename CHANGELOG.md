@@ -28,6 +28,8 @@ All notable changes to this project will be documented in this file.
 - **Observability & Network Resilience (P3 Audit Fix)**
   - Added `/health` FastAPI endpoint to monitor broker status and SQLite connectivity.
   - Implemented Exponential Backoff in Firebase polling loop to prevent network storming on jitter/timeouts.
+- **Configurable Database Path**
+  - Exposed SQLite path via `NEON_LINK_DB_PATH` in `.env` to prevent hardcoded paths in production.
 
 ### Changed
 - Updated `scripts/prepare_audit.sh` to correctly compile the `NEON_LINK_DIGEST.txt` payload for LLM audits.

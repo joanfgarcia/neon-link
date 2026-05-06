@@ -5,8 +5,13 @@ import sqlite3
 import time
 from pathlib import Path
 
-# The shared DB lives in the red_pill repository storage directory
-DB_PATH = Path(os.path.expanduser("~/.gemini/antigravity/storage/events.db"))
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# The shared DB lives in the red_pill repository storage directory by default
+_db_env = os.environ.get("NEON_LINK_DB_PATH", "~/.gemini/antigravity/storage/events.db")
+DB_PATH = Path(os.path.expanduser(_db_env))
 logger = logging.getLogger(__name__)
 
 
