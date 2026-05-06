@@ -20,6 +20,25 @@ To run Neon-Link locally and securely (bound to `127.0.0.1:8770`):
 ./start.sh
 ```
 
+### Configuration & Dependency Injection
+Neon-Link is designed to be fully platform-agnostic. All paths and credentials must be provided explicitly to avoid hardcoded environments.
+
+**As a Daemon:**
+Copy `.env.example` to `.env` and fill in the required variables (e.g., `NEON_LINK_AGENT_ID`, `NEON_LINK_DB_PATH`). The daemon will fail-fast if these are missing.
+
+**As a Library (Plugin for Red-Pill):**
+You can inject dependencies dynamically at runtime without relying on `.env` files:
+```python
+import neon_link.db
+from neon_link.plugins.telegram import TelegramHub
+
+# 1. Inject Database Path dynamically
+neon_link.db.set_db_path("/absolute/path/to/cortex.db")
+
+# 2. Inject credentials directly to plugins
+t_hub = TelegramHub(identity_manager, bot_token="TOKEN", allowed_user_id="ID")
+```
+
 For more details, check our [Usage Guide](docs/GUIDES/USAGE.md) and [Examples](docs/EXAMPLES/CURL_EXAMPLES.md).
 
 ---
@@ -38,6 +57,25 @@ Neon-Link es un microservicio desacoplado y sin estado (stateless) diseñado par
 Para levantar Neon-Link localmente de forma segura (mapeado a `127.0.0.1:8770`):
 ```bash
 ./start.sh
+```
+
+### Configuración e Inyección de Dependencias
+Neon-Link está diseñado para ser totalmente agnóstico a la plataforma. No hay rutas absolutas duras ni credenciales por defecto.
+
+**Como Daemon:**
+Copia `.env.example` a `.env` y rellena las variables requeridas (ej. `NEON_LINK_AGENT_ID`, `NEON_LINK_DB_PATH`). El daemon fallará rápidamente (Fail-Fast) si alguna configuración crítica falta.
+
+**Como Librería (Plugin para Red-Pill):**
+Puedes inyectar las dependencias de forma dinámica en tiempo de ejecución sin usar archivos `.env`:
+```python
+import neon_link.db
+from neon_link.plugins.telegram import TelegramHub
+
+# 1. Inyectar la ruta a la base de datos de manera explícita
+neon_link.db.set_db_path("/ruta/absoluta/hacia/cortex.db")
+
+# 2. Inyectar credenciales directamente en la instancia
+t_hub = TelegramHub(identity_manager, bot_token="TOKEN", allowed_user_id="ID")
 ```
 
 Para más detalles, consulta nuestra [Guía de Uso](docs/GUIDES/USAGE.md) y los [Ejemplos](docs/EXAMPLES/CURL_EXAMPLES.md).
