@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import sqlite3
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 def with_retry(max_retries=3, base_delay=0.5):
 	"""Decorator to retry SQLite operations if the database is locked."""
 	from functools import wraps
+
 	def decorator(func):
 		@wraps(func)
 		def wrapper(*args, **kwargs):
@@ -28,7 +30,9 @@ def with_retry(max_retries=3, base_delay=0.5):
 						time.sleep(base_delay * (2 ** (retries - 1)))
 					else:
 						raise e
+
 		return wrapper
+
 	return decorator
 
 
@@ -37,7 +41,7 @@ def get_connection():
 	# Ensure storage dir exists
 	DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-	conn = sqlite3.connect(str(DB_PATH), timeout=30.0, isolation_level='IMMEDIATE')
+	conn = sqlite3.connect(str(DB_PATH), timeout=30.0, isolation_level="IMMEDIATE")
 	conn.row_factory = sqlite3.Row
 	# Enable WAL for high-concurrency between Neon-Link and Red-Pill
 	conn.execute("PRAGMA journal_mode=WAL;")
@@ -55,6 +59,7 @@ def init_db():
 	cursor.execute("""
 		CREATE TABLE IF NOT EXISTS inbox (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			message_id TEXT UNIQUE,
 			channel TEXT NOT NULL,          -- e.g., 'telegram', 'discord'
 			channel_user_id TEXT NOT NULL,  -- e.g., telegram user ID
 			cascade_id TEXT,                -- Target conversation UUID (if known)
@@ -69,6 +74,7 @@ def init_db():
 	cursor.execute("""
 		CREATE TABLE IF NOT EXISTS outbox (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			message_id TEXT UNIQUE,
 			channel TEXT NOT NULL,
 			channel_user_id TEXT NOT NULL,
 			cascade_id TEXT,
@@ -77,6 +83,12 @@ def init_db():
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	""")
+
+	# Add columns if they do not exist (migration)
+	with contextlib.suppress(sqlite3.OperationalError):
+		cursor.execute("ALTER TABLE inbox ADD COLUMN message_id TEXT UNIQUE")
+	with contextlib.suppress(sqlite3.OperationalError):
+		cursor.execute("ALTER TABLE outbox ADD COLUMN message_id TEXT UNIQUE")
 
 	# DEAD LETTERS: Messages that failed to process 3 times
 	cursor.execute("""

@@ -17,8 +17,11 @@ from neon_link.db import get_connection  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_USER_ID = os.environ.get("TELEGRAM_WHITELIST_ID", "REPLACE_ME")
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "REPLACE_ME")
+ALLOWED_USER_ID = os.environ.get("TELEGRAM_WHITELIST_ID")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+
+if not ALLOWED_USER_ID or not BOT_TOKEN:
+	logger.warning("TELEGRAM_WHITELIST_ID or TELEGRAM_BOT_TOKEN missing. Telegram Hub might fail if enabled.")
 
 
 class TelegramHub(NetworkPlugin):
@@ -66,7 +69,7 @@ class TelegramHub(NetworkPlugin):
 		chat_type = message["chat"].get("type", "private")
 		text = message.get("text", "")
 
-		if chat_id != ALLOWED_USER_ID and ALLOWED_USER_ID != "REPLACE_ME":
+		if ALLOWED_USER_ID and chat_id != ALLOWED_USER_ID:
 			logger.warning(f"Unauthorized access attempt from {chat_id}")
 			return
 
@@ -115,7 +118,7 @@ class TelegramHub(NetworkPlugin):
 		url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
 		logger.info("Started Telegram Ingress Polling...")
 		while self.running:
-			if BOT_TOKEN == "REPLACE_ME":
+			if not BOT_TOKEN:
 				logger.error("TELEGRAM_BOT_TOKEN not set. Exiting Ingress loop.")
 				break
 

@@ -93,7 +93,7 @@ class FirebaseHub(NetworkPlugin):
 		logger.info("[FirebaseHub] Started Firebase Ingress Polling...")
 		loop = asyncio.new_event_loop()
 		asyncio.set_event_loop(loop)
-		
+
 		error_backoff = 2.0
 		max_backoff = 30.0
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import sqlite3
@@ -79,12 +80,19 @@ class CryptoPipeline:
 
 		# Encrypt application message
 		try:
+			# Advance epoch for Forward Secrecy before sending app message
+			group, update = group.update_key()
+			self._save_group_state(group_id, group)
+
+			update_event = NetworkEvent(type="update", recipient_id=group_id, payload=MLSMessage.wrap_commit(update).to_bytes())
+			await plugin.send_event(update_event)
+
 			ciphertext = group.encrypt_application_message(payload_str.encode())
 			event = NetworkEvent(type="application", recipient_id=group_id, payload=ciphertext)
 			self._save_group_state(group_id, group)
 			return await plugin.send_event(event)
 		except Exception as e:
-			logger.error(f"[Pipeline] Encryption failed: {e}")
+			logger.error(f"[Pipeline] Encryption/Commit failed: {e}")
 			return False
 
 	async def process_ingress(self, plugin: NetworkPlugin, sender_id: str, event: NetworkEvent):
@@ -148,12 +156,19 @@ class CryptoPipeline:
 			mode = "conversational"
 
 		payload = json.dumps({"text": text, "sender_id": sender_id, "mode": mode})
+		message_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 		conn = get_connection()
 		try:
-			conn.execute("INSERT INTO inbox (channel, channel_user_id, payload) VALUES (?, ?, ?)", (channel, sender_id, payload))
-			conn.commit()
-			logger.info(f"[Pipeline] Enqueued {mode} message from {sender_id} via {channel}.")
+			cursor = conn.execute(
+				"INSERT OR IGNORE INTO inbox (message_id, channel, channel_user_id, payload) VALUES (?, ?, ?, ?)",
+				(message_id, channel, sender_id, payload),
+			)
+			if cursor.rowcount > 0:
+				conn.commit()
+				logger.info(f"[Pipeline] Enqueued {mode} message from {sender_id} via {channel}.")
+			else:
+				logger.info(f"[Pipeline] Dropped duplicate message from {sender_id} via {channel}.")
 		finally:
 			conn.close()
 
