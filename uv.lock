@@ -731,7 +731,7 @@ wheels = [
 
 [[package]]
 name = "neon-link"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
@@ -758,7 +758,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "firebase-admin", specifier = ">=7.4.0" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "pure-mls", directory = "../pure-mls" },
+    { name = "pure-mls", specifier = ">=3.0.5.1" },
     { name = "pydantic", specifier = ">=2.13.3" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "requests", specifier = ">=2.33.1" },
@@ -830,29 +830,14 @@ wheels = [
 
 [[package]]
 name = "pure-mls"
-version = "3.0.5.0"
-source = { directory = "../pure-mls" }
+version = "3.0.5.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
 ]
-
-[package.metadata]
-requires-dist = [{ name = "cryptography", specifier = ">=46.0.5" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "aiomqtt", specifier = ">=2.5.1" },
-    { name = "aiortc", specifier = ">=1.14.0" },
-    { name = "amqtt", specifier = ">=0.11.0" },
-    { name = "coverage", specifier = ">=7.13.5" },
-    { name = "grpcio", specifier = ">=1.78.0" },
-    { name = "grpcio-tools", specifier = ">=1.78.0" },
-    { name = "mypy", specifier = ">=1.19.1" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "pytest-asyncio", specifier = ">=1.3.0" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
-    { name = "ruff", specifier = ">=0.15.6" },
-    { name = "websockets", specifier = ">=15.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/11/2d/b34dfc0b1ea8f84be89b4137e717434062af23d7ee2fc28a2debfecbe514/pure_mls-3.0.5.1.tar.gz", hash = "sha256:4cfccb1ebf6eae229952d87941c8cb3cdee58461fc10d20a18b994913e6c98a9", size = 42803, upload-time = "2026-05-06T16:49:17.888Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9b/d4/6e87ccc978653a6e280aff8752b6997b08ea825a1248314e1094fccdf5a1/pure_mls-3.0.5.1-py3-none-any.whl", hash = "sha256:2b089dc46d3f7b63633fcfa6e8c3a8114359e01525bba88a7d9e080953e0a82a", size = 49512, upload-time = "2026-05-06T16:49:16.768Z" },
 ]
 
 [[package]]
