@@ -1,9 +1,35 @@
+import logging
 import os
 import sqlite3
+import time
 from pathlib import Path
 
 # The shared DB lives in the red_pill repository storage directory
 DB_PATH = Path(os.path.expanduser("~/.gemini/antigravity/storage/events.db"))
+logger = logging.getLogger(__name__)
+
+
+def with_retry(max_retries=3, base_delay=0.5):
+	"""Decorator to retry SQLite operations if the database is locked."""
+	from functools import wraps
+	def decorator(func):
+		@wraps(func)
+		def wrapper(*args, **kwargs):
+			retries = 0
+			while retries < max_retries:
+				try:
+					return func(*args, **kwargs)
+				except sqlite3.OperationalError as e:
+					if "database is locked" in str(e):
+						retries += 1
+						if retries == max_retries:
+							logger.error(f"Database locked after {max_retries} retries in {func.__name__}")
+							raise e
+						time.sleep(base_delay * (2 ** (retries - 1)))
+					else:
+						raise e
+		return wrapper
+	return decorator
 
 
 def get_connection():
@@ -11,11 +37,12 @@ def get_connection():
 	# Ensure storage dir exists
 	DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-	conn = sqlite3.connect(str(DB_PATH), timeout=10.0)
+	conn = sqlite3.connect(str(DB_PATH), timeout=30.0, isolation_level='IMMEDIATE')
 	conn.row_factory = sqlite3.Row
 	# Enable WAL for high-concurrency between Neon-Link and Red-Pill
 	conn.execute("PRAGMA journal_mode=WAL;")
 	conn.execute("PRAGMA synchronous=NORMAL;")
+	conn.execute("PRAGMA busy_timeout=5000;")
 	return conn
 
 

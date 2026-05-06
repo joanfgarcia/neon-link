@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
 - **Pipeline Architecture** (2026-05-06)
   - Decoupled `CryptoPipeline` handling E2E encryption from transport plugins (`FirebaseHub` / `TelegramHub`).
 
+### Fixed
+- **SQLite Concurrency Hardening (P1 Audit Fix)**
+  - Configured `get_connection()` with `timeout=30.0`, `isolation_level='IMMEDIATE'`, and `PRAGMA busy_timeout=5000` to prevent `database is locked` errors during high-frequency Swarm polling.
+  - Added `@with_retry` decorator in `db.py` for defense-in-depth transaction management.
+
 ### Changed
 - Updated `scripts/prepare_audit.sh` to correctly compile the `NEON_LINK_DIGEST.txt` payload for LLM audits.
 - Removed obsolete tracked digest files to clean up the repository.
