@@ -21,10 +21,12 @@ def set_db_path(path: str | Path):
 
 
 def get_db_path() -> Path:
-	"""Obtiene la ruta actual, con fallback a variables de entorno o valor por defecto."""
+	"""Obtiene la ruta actual, con fallback a variables de entorno o error si no está definida."""
 	if _DB_PATH is not None:
 		return _DB_PATH
-	env_path = os.environ.get("NEON_LINK_DB_PATH", "~/.gemini/antigravity/storage/events.db")
+	env_path = os.environ.get("NEON_LINK_DB_PATH")
+	if not env_path:
+		raise ValueError("Database path is not configured. Call set_db_path() or set NEON_LINK_DB_PATH environment variable.")
 	return Path(os.path.expanduser(env_path))
 
 
