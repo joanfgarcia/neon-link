@@ -30,7 +30,7 @@ def main():
 	from neon_link.core.webhook import WebhookNotifier
 
 	id_mgr = IdentityManager()
-	wh_url = os.environ.get("WEBHOOK_URL", "http://localhost:8000/webhook")
+	wh_url = os.environ.get("WEBHOOK_URL", "http://localhost:8771/webhook")
 	wh_notifier = WebhookNotifier(wh_url)
 	manager = PluginManager(wh_notifier, id_mgr, agent_id)
 
