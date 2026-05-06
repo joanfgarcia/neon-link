@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Neon-Link Certification Preparation Script
-# Combines all relevant code into a single digest file for LLM Auditors (Claude/DeepSeek).
+# Combines all relevant code into a single digest file for LLM Auditors (Claude/DeepSeek/Grok/Lumo).
 
 OUTPUT_FILE="NEON_LINK_DIGEST.txt"
 

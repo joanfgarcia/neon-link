@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Test Coverage Expansion** (2026-05-06)
+  - Stabilized the Neon-Link test suite, reaching **96.31%** total code coverage.
+  - Implemented extensive unit and integration tests across `middleware.py`, `firebase.py`, and `telegram.py` handling complex async mocks and threads.
+  - Validated adherence to the Sound of Silence protocol and Red-Pill conventions.
+- **Pipeline Architecture** (2026-05-06)
+  - Decoupled `CryptoPipeline` handling E2E encryption from transport plugins (`FirebaseHub` / `TelegramHub`).
+
+### Changed
+- Updated `scripts/prepare_audit.sh` to correctly compile the `NEON_LINK_DIGEST.txt` payload for LLM audits.
+- Removed obsolete tracked digest files to clean up the repository.
+
+### Added (Legacy)
 - **Phase 4: Omnipresence MVP** (2026-05-02)
   - Implemented Session Binding: Added `/list` and `/switch` commands to `telegram_bot.py`.
   - Added `telegram_sessions` and `cascade_mappings` to the SQLite WAL schema in `db.py`.
