@@ -11,7 +11,7 @@ from neon_link.plugins.firebase import FirebaseHub
 def test_firebase_hub_init(mock_cred, mock_admin):
 	mock_admin.get_app.side_effect = ValueError("App does not exist")
 	identity = MagicMock()
-	hub = FirebaseHub(identity)
+	hub = FirebaseHub(identity, agent_id="test_agent")
 	assert hub.name == "firebase"
 	mock_admin.initialize_app.assert_called()
 
@@ -22,7 +22,7 @@ def test_firebase_hub_init(mock_cred, mock_admin):
 @patch("neon_link.plugins.firebase.credentials")
 async def test_firebase_send_event(mock_cred, mock_admin, mock_db):
 	identity = MagicMock()
-	hub = FirebaseHub(identity)
+	hub = FirebaseHub(identity, agent_id="test_agent")
 	hub.app = MagicMock()
 
 	event = NetworkEvent(type="welcome", recipient_id="bob", payload=b"hello")
@@ -38,7 +38,7 @@ async def test_firebase_send_event(mock_cred, mock_admin, mock_db):
 @patch("neon_link.plugins.firebase.credentials")
 async def test_firebase_fetch_key(mock_cred, mock_admin, mock_db):
 	identity = MagicMock()
-	hub = FirebaseHub(identity)
+	hub = FirebaseHub(identity, agent_id="test_agent")
 	hub.app = MagicMock()
 
 	mock_ref = MagicMock()
@@ -56,7 +56,7 @@ def test_firebase_register_callback():
 
 	with patch("neon_link.plugins.firebase.firebase_admin"), patch("neon_link.plugins.firebase.credentials"):
 		fb.firebase_admin.get_app.side_effect = ValueError("App does not exist")
-		hub = FirebaseHub(MagicMock())
+		hub = FirebaseHub(MagicMock(), agent_id="test_agent")
 		cb = MagicMock()
 		hub.register_callback(cb)
 		assert hub._on_event_callback == cb
@@ -68,7 +68,7 @@ def test_firebase_register_callback():
 def test_firebase_poll(mock_cred, mock_admin, mock_db):
 	mock_admin.get_app.side_effect = ValueError("App does not exist")
 	identity = MagicMock()
-	hub = FirebaseHub(identity)
+	hub = FirebaseHub(identity, agent_id="test_agent")
 	hub.app = MagicMock()
 	hub.running = True
 
@@ -93,13 +93,13 @@ def test_firebase_poll(mock_cred, mock_admin, mock_db):
 
 @pytest.mark.asyncio
 async def test_fetch_key_package_no_app():
-	hub = FirebaseHub(MagicMock())
+	hub = FirebaseHub(MagicMock(), agent_id="test_agent")
 	hub.app = None
 	assert await hub.fetch_key_package("agent") is None
 
 
 def test_publish_key_package():
-	hub = FirebaseHub(MagicMock())
+	hub = FirebaseHub(MagicMock(), agent_id="test_agent")
 	hub.app = None
 	hub.publish_my_key_package(b"test")  # shouldn't crash
 
@@ -107,7 +107,7 @@ def test_publish_key_package():
 @pytest.mark.asyncio
 @patch("neon_link.plugins.firebase.threading.Thread")
 async def test_firebase_threads(mock_thread):
-	hub = FirebaseHub(MagicMock())
+	hub = FirebaseHub(MagicMock(), agent_id="test_agent")
 	await hub.start()
 	mock_thread.assert_called()
 
@@ -119,7 +119,7 @@ async def test_firebase_threads(mock_thread):
 
 @pytest.mark.asyncio
 async def test_firebase_send_event_no_app():
-	hub = FirebaseHub(MagicMock())
+	hub = FirebaseHub(MagicMock(), agent_id="test_agent")
 	hub.app = None
 	event = MagicMock()
 	assert await hub.send_event(event) is False
@@ -130,19 +130,19 @@ def test_firebase_init_error():
 		m_cred.Certificate.side_effect = Exception("error")
 		with patch("neon_link.plugins.firebase.firebase_admin") as m_admin:
 			m_admin.get_app.side_effect = ValueError()
-			FirebaseHub(MagicMock())
+			FirebaseHub(MagicMock(), agent_id="test_agent")
 
 
 @pytest.mark.asyncio
 async def test_firebase_send_event_error():
-	hub = FirebaseHub(MagicMock())
+	hub = FirebaseHub(MagicMock(), agent_id="test_agent")
 	hub.app = MagicMock()
 	with patch("neon_link.plugins.firebase.db.reference", side_effect=Exception("error")):
 		await hub.send_event(MagicMock())
 
 
 def test_publish_key_package_error():
-	hub = FirebaseHub(MagicMock())
+	hub = FirebaseHub(MagicMock(), agent_id="test_agent")
 	hub.app = MagicMock()
 	with patch("neon_link.plugins.firebase.db.reference", side_effect=Exception("error")):
 		hub.publish_my_key_package(b"test")

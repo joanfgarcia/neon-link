@@ -15,7 +15,9 @@ def main():
 	logger.info("Starting Neon-Link Unified Daemon...")
 	load_dotenv()
 
-	agent_id = os.environ.get("NEON_LINK_AGENT_ID", "red_pill_core")
+	agent_id = os.environ.get("NEON_LINK_AGENT_ID")
+	if not agent_id:
+		raise ValueError("NEON_LINK_AGENT_ID no está configurado en el entorno.")
 	enable_telegram = os.environ.get("ENABLE_TELEGRAM", "false").lower() == "true"
 	enable_firebase = os.environ.get("ENABLE_FIREBASE", "false").lower() == "true"
 

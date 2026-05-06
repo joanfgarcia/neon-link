@@ -20,12 +20,15 @@ class FirebaseHub(NetworkPlugin):
 	Only handles Firebase RTDB logic, push/pull bytes. No Crypto logic.
 	"""
 
-	def __init__(self, identity_manager: IdentityManager):
+	def __init__(self, identity_manager: IdentityManager, db_url: str | None = None, credential_path: str | None = None, agent_id: str | None = None):
 		super().__init__("firebase", identity_manager)
 		self.running = False
-		self.db_url = os.environ.get("FIREBASE_DB_URL", "https://replace-me.firebaseio.com")
-		self.credential_path = os.environ.get("FIREBASE_CREDENTIALS", "firebase-keys.json")
-		self.agent_id = os.environ.get("NEON_LINK_AGENT_ID", "red_pill_core")
+		self.db_url = db_url or os.environ.get("FIREBASE_DB_URL")
+		self.credential_path = credential_path or os.environ.get("FIREBASE_CREDENTIALS")
+		self.agent_id = agent_id or os.environ.get("NEON_LINK_AGENT_ID")
+
+		if not self.db_url or not self.credential_path or not self.agent_id:
+			logger.warning("Firebase config missing (FIREBASE_DB_URL, FIREBASE_CREDENTIALS or NEON_LINK_AGENT_ID). Plugin might fail if enabled.")
 
 		logger.info("[FirebaseHub] Initializing Firebase SDK...")
 		try:
