@@ -9,10 +9,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# The shared DB lives in the red_pill repository storage directory by default
-_db_env = os.environ.get("NEON_LINK_DB_PATH", "~/.gemini/antigravity/storage/events.db")
-DB_PATH = Path(os.path.expanduser(_db_env))
 logger = logging.getLogger(__name__)
+
+_DB_PATH: Path | None = None
+
+
+def set_db_path(path: str | Path):
+	"""Configura dinámicamente la ruta de la base de datos (Inyección de dependencias)."""
+	global _DB_PATH
+	_DB_PATH = Path(os.path.expanduser(str(path)))
+
+
+def get_db_path() -> Path:
+	"""Obtiene la ruta actual, con fallback a variables de entorno o valor por defecto."""
+	if _DB_PATH is not None:
+		return _DB_PATH
+	env_path = os.environ.get("NEON_LINK_DB_PATH", "~/.gemini/antigravity/storage/events.db")
+	return Path(os.path.expanduser(env_path))
 
 
 def with_retry(max_retries=3, base_delay=0.5):
@@ -43,10 +56,11 @@ def with_retry(max_retries=3, base_delay=0.5):
 
 def get_connection():
 	"""Returns a SQLite connection configured for WAL mode."""
+	db_path = get_db_path()
 	# Ensure storage dir exists
-	DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+	db_path.parent.mkdir(parents=True, exist_ok=True)
 
-	conn = sqlite3.connect(str(DB_PATH), timeout=30.0, isolation_level="IMMEDIATE")
+	conn = sqlite3.connect(str(db_path), timeout=30.0, isolation_level="IMMEDIATE")
 	conn.row_factory = sqlite3.Row
 	# Enable WAL for high-concurrency between Neon-Link and Red-Pill
 	conn.execute("PRAGMA journal_mode=WAL;")
@@ -154,7 +168,7 @@ def init_db():
 
 	conn.commit()
 	conn.close()
-	print(f"[+] SQLite WAL Synaptic Cleft initialized at: {DB_PATH}")
+	print(f"[+] SQLite WAL Synaptic Cleft initialized at: {get_db_path()}")
 
 
 if __name__ == "__main__":

@@ -17,18 +17,17 @@ from neon_link.db import get_connection  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_USER_ID = os.environ.get("TELEGRAM_WHITELIST_ID")
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-
-if not ALLOWED_USER_ID or not BOT_TOKEN:
-	logger.warning("TELEGRAM_WHITELIST_ID or TELEGRAM_BOT_TOKEN missing. Telegram Hub might fail if enabled.")
-
 
 class TelegramHub(NetworkPlugin):
-	def __init__(self, identity_manager: IdentityManager):
+	def __init__(self, identity_manager: IdentityManager, bot_token: str | None = None, allowed_user_id: str | None = None):
 		super().__init__("telegram", identity_manager)
+		self.bot_token = bot_token or os.environ.get("TELEGRAM_BOT_TOKEN")
+		self.allowed_user_id = allowed_user_id or os.environ.get("TELEGRAM_WHITELIST_ID")
 		self.offset = 0
 		self.running = False
+
+		if not self.allowed_user_id or not self.bot_token:
+			logger.warning("TELEGRAM_WHITELIST_ID or TELEGRAM_BOT_TOKEN missing. Telegram Hub might fail if enabled.")
 
 	def check_red_pill_health(self) -> bool:
 		conn = get_connection()
@@ -42,7 +41,7 @@ class TelegramHub(NetworkPlugin):
 		return not (row and row[0] is not None and row[0] > 60)
 
 	def send_message(self, chat_id, text):
-		url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+		url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
 		try:
 			requests.post(url, json={"chat_id": chat_id, "text": text})
 		except Exception as e:
@@ -50,7 +49,7 @@ class TelegramHub(NetworkPlugin):
 
 	async def send_event(self, event: NetworkEvent) -> bool:
 		text = event.payload.decode("utf-8")
-		url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+		url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
 		try:
 			resp = requests.post(url, json={"chat_id": event.recipient_id, "text": text})
 			if resp.status_code == 200:
@@ -69,7 +68,7 @@ class TelegramHub(NetworkPlugin):
 		chat_type = message["chat"].get("type", "private")
 		text = message.get("text", "")
 
-		if ALLOWED_USER_ID and chat_id != ALLOWED_USER_ID:
+		if self.allowed_user_id and chat_id != self.allowed_user_id:
 			logger.warning(f"Unauthorized access attempt from {chat_id}")
 			return
 
@@ -115,10 +114,10 @@ class TelegramHub(NetworkPlugin):
 				logger.error(f"Failed to enqueue via callback: {e}")
 
 	def poll_telegram(self):
-		url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+		url = f"https://api.telegram.org/bot{self.bot_token}/getUpdates"
 		logger.info("Started Telegram Ingress Polling...")
 		while self.running:
-			if not BOT_TOKEN:
+			if not self.bot_token:
 				logger.error("TELEGRAM_BOT_TOKEN not set. Exiting Ingress loop.")
 				break
 

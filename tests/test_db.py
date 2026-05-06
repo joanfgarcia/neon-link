@@ -6,7 +6,7 @@ from neon_link.db import get_connection, init_db
 def test_init_db_and_get_connection(tmp_path):
 	db_path = tmp_path / "test_events.db"
 
-	with patch("neon_link.db.DB_PATH", db_path):
+	with patch("neon_link.db.get_db_path", return_value=db_path):
 		# Initialize the DB
 		init_db()
 		assert db_path.exists()
