@@ -2,8 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.3.1] - 2026-05-08
 
+### Added
+- **OS-Agnostic Config**: Migrated to `platformdirs` for standardized configuration and database paths (`~/.config/neon-link`, `~/.local/share/neon-link`).
+- **CLI Commands**: Added robust `neon-link init` and `neon-link help` commands.
+
+## [0.3.0] - 2026-05-08
 ### Added
 - **Test Coverage Expansion** (2026-05-06)
   - Stabilized the Neon-Link test suite, reaching **96.31%** total code coverage.
