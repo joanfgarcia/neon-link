@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.4.0] - 2026-05-08
+
+### Added
+- **Neon-Rings Integration**: Implemented `RingsHub` plugin for native P2P transport integration.
+- **OS-Agnostic Config**: Migrated to `platformdirs` for standardized configuration and database paths (`~/.config/neon-link`, `~/.local/share/neon-link`).
+- **CLI Commands**: Added robust `neon-link init` and `neon-link help` commands.
+
+## [0.3.0] - 2026-05-08
 
 ### Added
 - **Test Coverage Expansion** (2026-05-06)
