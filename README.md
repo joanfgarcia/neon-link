@@ -15,16 +15,20 @@ Neon-Link is a decoupled, stateless microservice designed to act as a universal 
 4. **Offline First**: Messages are decrypted and queued in a local, fast in-memory inbox for the core system to poll at its own pace.
 
 ### Quick Start
-To run Neon-Link locally and securely (bound to `127.0.0.1:8770`):
+To initialize the configuration in your user directory (OS-agnostic):
 ```bash
-./start.sh
+uv run neon-link init
+```
+To run Neon-Link locally and securely:
+```bash
+uv run neon-link start
 ```
 
 ### Configuration & Dependency Injection
 Neon-Link is designed to be fully platform-agnostic. All paths and credentials must be provided explicitly to avoid hardcoded environments.
 
 **As a Daemon:**
-Copy `.env.example` to `.env` and fill in the required variables (e.g., `NEON_LINK_AGENT_ID`, `NEON_LINK_DB_PATH`). The daemon will fail-fast if these are missing.
+Run `uv run neon-link init`. This will create `~/.config/neon-link/.env` (or OS equivalent) and initialize the `events.db` queue in the same directory. Fill in the required variables (e.g., `NEON_LINK_AGENT_ID`). The daemon will fail-fast if these are missing.
 
 **As a Library (Plugin for Red-Pill):**
 You can inject dependencies dynamically at runtime without relying on `.env` files:
@@ -54,16 +58,20 @@ Neon-Link es un microservicio desacoplado y sin estado (stateless) diseñado par
 4. **Offline First**: Los mensajes se desencriptan y se encolan en un inbox local y rápido en memoria, para que el sistema principal los consulte a su propio ritmo.
 
 ### Inicio Rápido
-Para levantar Neon-Link localmente de forma segura (mapeado a `127.0.0.1:8770`):
+Para inicializar la configuración en tu directorio de usuario (Agnóstico al SO):
 ```bash
-./start.sh
+uv run neon-link init
+```
+Para levantar Neon-Link localmente de forma segura:
+```bash
+uv run neon-link start
 ```
 
 ### Configuración e Inyección de Dependencias
 Neon-Link está diseñado para ser totalmente agnóstico a la plataforma. No hay rutas absolutas duras ni credenciales por defecto.
 
 **Como Daemon:**
-Copia `.env.example` a `.env` y rellena las variables requeridas (ej. `NEON_LINK_AGENT_ID`, `NEON_LINK_DB_PATH`). El daemon fallará rápidamente (Fail-Fast) si alguna configuración crítica falta.
+Ejecuta `uv run neon-link init`. Esto creará `~/.config/neon-link/.env` (o el equivalente de tu SO) e inicializará la cola `events.db` en el mismo directorio. Rellena las variables requeridas (ej. `NEON_LINK_AGENT_ID`). El daemon fallará rápidamente (Fail-Fast) si alguna configuración crítica falta.
 
 **Como Librería (Plugin para Red-Pill):**
 Puedes inyectar las dependencias de forma dinámica en tiempo de ejecución sin usar archivos `.env`:

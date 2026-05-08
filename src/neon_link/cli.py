@@ -3,26 +3,66 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 
+import platformdirs
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("neon_link.daemon")
 
+APP_NAME = "neon-link"
 
-def main():
-	"""Unified Daemon Entry Point for Neon-Link."""
+
+def get_config_dir() -> Path:
+	return Path(platformdirs.user_config_dir(APP_NAME))
+
+
+def init_config():
+	config_dir = get_config_dir()
+	config_dir.mkdir(parents=True, exist_ok=True)
+	env_file = config_dir / ".env"
+	db_file = config_dir / "events.db"
+
+	if not env_file.exists():
+		content = f"""# Ecosistema Red-Pill / Neon-Link Global Config
+NEON_LINK_AGENT_ID="aleth"
+NEON_LINK_DB_PATH="{db_file}"
+WEBHOOK_URL="http://localhost:8771/webhook"
+ENABLE_TELEGRAM=true
+ENABLE_FIREBASE=false
+TELEGRAM_BOT_TOKEN=""
+TELEGRAM_WHITELIST_ID=""
+FIREBASE_DB_URL=""
+FIREBASE_CREDENTIALS=""
+"""
+		env_file.write_text(content)
+		logger.info(f"[+] Archivo de configuración generado en: {env_file}")
+	else:
+		logger.info(f"[*] El archivo ya existe: {env_file}")
+
+	logger.info(f"[+] Rutas inicializadas para DB: {db_file}")
+	logger.info("Edita el archivo .env con tus tokens antes de iniciar el daemon.")
+
+
+def start_daemon():
 	logger.info("Starting Neon-Link Unified Daemon...")
-	load_dotenv()
+	config_dir = get_config_dir()
+	env_file = config_dir / ".env"
+
+	if env_file.exists():
+		load_dotenv(env_file)
+	load_dotenv()  # Fallback to local .env if present
 
 	agent_id = os.environ.get("NEON_LINK_AGENT_ID")
 	if not agent_id:
-		raise ValueError("NEON_LINK_AGENT_ID no está configurado en el entorno.")
+		raise ValueError(f"NEON_LINK_AGENT_ID no configurado. Ejecuta `neon-link init` o edita {env_file}")
+
 	enable_telegram = os.environ.get("ENABLE_TELEGRAM", "false").lower() == "true"
 	enable_firebase = os.environ.get("ENABLE_FIREBASE", "false").lower() == "true"
 
 	if not enable_telegram and not enable_firebase:
-		logger.error("No active channels configured in .env (ENABLE_TELEGRAM, ENABLE_FIREBASE). Exiting.")
+		logger.error("No active channels configured in .env. Exiting.")
 		sys.exit(1)
 
 	from neon_link.core.crypto import IdentityManager
@@ -67,6 +107,27 @@ def main():
 	except KeyboardInterrupt:
 		logger.info("Shutting down Neon-Link Daemon...")
 		loop.run_until_complete(manager.stop_all())
+
+
+def main():
+	if len(sys.argv) > 1:
+		cmd = sys.argv[1]
+		if cmd == "init":
+			init_config()
+		elif cmd == "start":
+			start_daemon()
+		elif cmd in ("-h", "--help", "help"):
+			print("Neon-Link Agnostic Communication Hub")
+			print("Usage:")
+			print("  neon-link init    - Initializes ~/.config/neon-link/.env and events.db")
+			print("  neon-link start   - Starts the daemon")
+			print("  neon-link --help  - Shows this message")
+		else:
+			print(f"Unknown command: {cmd}")
+			print("Run 'neon-link --help' for usage.")
+			sys.exit(1)
+	else:
+		start_daemon()
 
 
 if __name__ == "__main__":
