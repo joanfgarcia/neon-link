@@ -31,6 +31,8 @@ NEON_LINK_DB_PATH="{db_file}"
 WEBHOOK_URL="http://localhost:8771/webhook"
 ENABLE_TELEGRAM=true
 ENABLE_FIREBASE=false
+ENABLE_RINGS=false
+RINGS_WS_URL="ws://127.0.0.1:50000/jsonrpc"
 TELEGRAM_BOT_TOKEN=""
 TELEGRAM_WHITELIST_ID=""
 FIREBASE_DB_URL=""
@@ -60,8 +62,9 @@ def start_daemon():
 
 	enable_telegram = os.environ.get("ENABLE_TELEGRAM", "false").lower() == "true"
 	enable_firebase = os.environ.get("ENABLE_FIREBASE", "false").lower() == "true"
+	enable_rings = os.environ.get("ENABLE_RINGS", "false").lower() == "true"
 
-	if not enable_telegram and not enable_firebase:
+	if not enable_telegram and not enable_firebase and not enable_rings:
 		logger.error("No active channels configured in .env. Exiting.")
 		sys.exit(1)
 
@@ -93,6 +96,16 @@ def start_daemon():
 			manager.register(f_hub)
 		except Exception as e:
 			logger.error(f"Failed to start Firebase Hub: {e}")
+
+	if enable_rings:
+		logger.info("Initializing Rings Hub (P2P)...")
+		try:
+			from neon_link.plugins.rings import RingsHub
+
+			r_hub = RingsHub(id_mgr)
+			manager.register(r_hub)
+		except Exception as e:
+			logger.error(f"Failed to start Rings Hub: {e}")
 
 	if not manager.plugins:
 		logger.error("All enabled hubs failed to start. Exiting.")
