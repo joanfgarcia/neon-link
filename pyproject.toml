@@ -21,7 +21,7 @@ dependencies = [
 package = true
 
 [tool.uv.sources]
-neon-rings = { path = "../neon-rings", editable = true }
+neon-rings = { git = "https://github.com/joanfgarcia/neon-rings.git" }
 
 
 [dependency-groups]
