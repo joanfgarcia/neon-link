@@ -28,7 +28,7 @@ uv run neon-link start
 Neon-Link is designed to be fully platform-agnostic. All paths and credentials must be provided explicitly to avoid hardcoded environments.
 
 **As a Daemon:**
-Run `uv run neon-link init`. This will create `~/.config/neon-link/.env` (or OS equivalent). Fill in the required variables (e.g., `NEON_LINK_AGENT_ID`). The daemon will fail-fast if these are missing.
+Run `uv run neon-link init`. This will create `~/.config/neon-link/.env` (or OS equivalent) and initialize the `events.db` queue in the same directory. Fill in the required variables (e.g., `NEON_LINK_AGENT_ID`). The daemon will fail-fast if these are missing.
 
 **As a Library (Plugin for Red-Pill):**
 You can inject dependencies dynamically at runtime without relying on `.env` files:
@@ -71,7 +71,7 @@ uv run neon-link start
 Neon-Link está diseñado para ser totalmente agnóstico a la plataforma. No hay rutas absolutas duras ni credenciales por defecto.
 
 **Como Daemon:**
-Ejecuta `uv run neon-link init`. Esto creará `~/.config/neon-link/.env` (o el equivalente de tu SO). Rellena las variables requeridas (ej. `NEON_LINK_AGENT_ID`). El daemon fallará rápidamente (Fail-Fast) si alguna configuración crítica falta.
+Ejecuta `uv run neon-link init`. Esto creará `~/.config/neon-link/.env` (o el equivalente de tu SO) e inicializará la cola `events.db` en el mismo directorio. Rellena las variables requeridas (ej. `NEON_LINK_AGENT_ID`). El daemon fallará rápidamente (Fail-Fast) si alguna configuración crítica falta.
 
 **Como Librería (Plugin para Red-Pill):**
 Puedes inyectar las dependencias de forma dinámica en tiempo de ejecución sin usar archivos `.env`:
