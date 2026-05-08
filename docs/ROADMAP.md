@@ -33,3 +33,7 @@ La auditoría v0.2.0 de Grok determinó que el sistema es apto para producción 
 
 ### 7. Documentación Criptográfica
 - **Mejora**: Añadir un documento detallado en `docs/CORE/MLS_OPERATIONS.md` que detalle el ciclo de vida del grupo, cómo se propagan las propuestas/commits de `pure-mls`, y el funcionamiento del _epoch ratcheting_ (Forward Secrecy).
+
+### 8. Arquitectura de Plugins: Transición a un Modelo Desacoplado
+- **Decisión Arquitectónica**: Actualmente, `neon-link` opera como un "Monolito de Traducción" (ESB), donde los adaptadores de transporte (Telegram, Firebase, Rings) se implementan y mantienen directamente dentro de la carpeta `src/neon_link/plugins/`. Esto se hace por puro pragmatismo para acelerar la iteración y evitar la burocracia de mantener repositorios separados para cada adaptador.
+- **Evolución Futura**: Si el ecosistema crece significativamente (ej. >5 transportes diferentes) y el mantenimiento dentro de `neon-link` se vuelve inmanejable, se aplicará el patrón _Anti-Corruption Layer_. `neon-link` dejará de contener implementaciones y se convertirá en un núcleo puro que descubrirá plugins dinámicamente mediante `entry_points` de Python. Todo el código "pegamento" de adaptadores se extraerá a un nuevo repositorio soberano único llamado `neon-link-plugins`.
