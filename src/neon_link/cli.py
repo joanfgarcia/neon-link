@@ -110,8 +110,22 @@ def start_daemon():
 
 
 def main():
-	if len(sys.argv) > 1 and sys.argv[1] == "init":
-		init_config()
+	if len(sys.argv) > 1:
+		cmd = sys.argv[1]
+		if cmd == "init":
+			init_config()
+		elif cmd == "start":
+			start_daemon()
+		elif cmd in ("-h", "--help", "help"):
+			print("Neon-Link Agnostic Communication Hub")
+			print("Usage:")
+			print("  neon-link init    - Initializes ~/.config/neon-link/.env and events.db")
+			print("  neon-link start   - Starts the daemon")
+			print("  neon-link --help  - Shows this message")
+		else:
+			print(f"Unknown command: {cmd}")
+			print("Run 'neon-link --help' for usage.")
+			sys.exit(1)
 	else:
 		start_daemon()
 
