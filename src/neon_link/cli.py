@@ -17,16 +17,18 @@ APP_NAME = "neon-link"
 def get_config_dir() -> Path:
 	return Path(platformdirs.user_config_dir(APP_NAME))
 
+
 def get_data_dir() -> Path:
 	return Path(platformdirs.user_data_dir(APP_NAME))
+
 
 def init_config():
 	config_dir = get_config_dir()
 	config_dir.mkdir(parents=True, exist_ok=True)
-	
+
 	data_dir = get_data_dir()
 	data_dir.mkdir(parents=True, exist_ok=True)
-	
+
 	env_file = config_dir / ".env"
 	db_file = data_dir / "events.db"
 
@@ -49,9 +51,10 @@ FIREBASE_CREDENTIALS=""
 
 	logger.info(f"[+] Rutas inicializadas para DB: {db_file}")
 	logger.info("Edita el archivo .env con tus tokens antes de iniciar el daemon.")
-	
+
 	try:
 		from neon_link.db import init_db, set_db_path
+
 		set_db_path(db_file)
 		init_db()
 	except Exception as e:
