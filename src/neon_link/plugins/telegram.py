@@ -66,21 +66,26 @@ class TelegramHub(NetworkPlugin):
 	def handle_message(self, message):
 		chat_id = str(message["chat"]["id"])
 		chat_type = message["chat"].get("type", "private")
-		text = message.get("text", "")
+		raw_text = message.get("text", "")
+		
+		sender = message.get("from", {})
+		sender_name = sender.get("username") or sender.get("first_name", "Unknown")
+		is_bot = sender.get("is_bot", False)
 
-		if self.allowed_user_id and chat_id != self.allowed_user_id:
+		allowed_ids = [x.strip() for x in self.allowed_user_id.split(",")] if self.allowed_user_id else []
+		if allowed_ids and chat_id not in allowed_ids:
 			logger.warning(f"Unauthorized access attempt from {chat_id}")
 			return
 
-		if text.startswith("/start"):
+		if raw_text.startswith("/start"):
 			self.send_message(chat_id, "⚡ Bünker Neon-Link conectado. Gateway I/O Activo. Esperando inputs.")
 			return
 
-		if text.startswith("/list"):
+		if raw_text.startswith("/list"):
 			payload = json.dumps({"command": "LIST_CASCADES", "mode": "conversational"})
 			self.send_message(chat_id, "🔍 Buscando sesiones activas en el Córtex...")
-		elif text.startswith("/switch "):
-			parts = text.split(" ")
+		elif raw_text.startswith("/switch "):
+			parts = raw_text.split(" ")
 			if len(parts) == 2 and parts[1].isdigit():
 				payload = json.dumps({"command": "SWITCH_CASCADE", "index": int(parts[1]), "mode": "conversational"})
 			else:
@@ -91,19 +96,33 @@ class TelegramHub(NetworkPlugin):
 			bot_username = os.environ.get("TELEGRAM_BOT_USERNAME", "")
 			mode = "conversational" if chat_type == "private" else "background"
 
-			if text.startswith("/bg "):
+			if raw_text.startswith("/bg "):
 				mode = "background"
-				text = text[4:].strip()
-			elif chat_type in ["group", "supergroup"] and bot_username and f"@{bot_username}" in text:
-				mode = "conversational"
+				formatted_text = f"[{sender_name}] {raw_text[4:].strip()}"
+			elif chat_type in ["group", "supergroup"] and bot_username:
+				mode = "background" # Default for groups
+				
+				if is_bot:
+					# Bot-to-Bot Protocol (B2BP)
+					# Requires strict syntax to trigger conversational mode and prevent infinite loops
+					if f"] @{bot_username} [" in raw_text or f">>{bot_username}<<" in raw_text:
+						mode = "conversational"
+				else:
+					# Human operator
+					if f"@{bot_username}" in raw_text:
+						mode = "conversational"
+						
+				formatted_text = f"[{sender_name}] {raw_text}"
+			else:
+				formatted_text = f"[{sender_name}] {raw_text}"
 
-			payload = json.dumps({"text": text, "mode": mode})
+			payload = json.dumps({"text": formatted_text, "mode": mode})
 
 		# Check health
 		if not self.check_red_pill_health():
 			self.send_message(chat_id, "⚠️ Córtex Offline. El IDE o Red-Pill no responde. El mensaje será encolado.")
 
-		logger.info(f"Received from Telegram: {text}")
+		logger.info(f"Received from Telegram: {raw_text}")
 
 		# Pass to Pipeline via callback
 		if self._on_event_callback:
@@ -135,6 +154,14 @@ class TelegramHub(NetworkPlugin):
 
 	async def start(self):
 		self.running = True
+		if not os.environ.get("TELEGRAM_BOT_USERNAME") and self.bot_token:
+			try:
+				resp = requests.get(f"https://api.telegram.org/bot{self.bot_token}/getMe", timeout=10)
+				if resp.status_code == 200:
+					os.environ["TELEGRAM_BOT_USERNAME"] = resp.json()["result"]["username"]
+			except Exception as e:
+				logger.error(f"Failed to fetch bot username: {e}")
+
 		self.t_ingress = threading.Thread(target=self.poll_telegram)
 		self.t_ingress.daemon = True
 		self.t_ingress.start()
