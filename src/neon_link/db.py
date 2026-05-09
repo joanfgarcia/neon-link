@@ -21,13 +21,17 @@ def set_db_path(path: str | Path):
 
 
 def get_db_path() -> Path:
-	"""Obtiene la ruta actual, con fallback a variables de entorno o error si no está definida."""
+	"""Obtiene la ruta actual, con fallback a variables de entorno o directorio nativo de datos."""
 	if _DB_PATH is not None:
 		return _DB_PATH
+
 	env_path = os.environ.get("NEON_LINK_DB_PATH")
-	if not env_path:
-		raise ValueError("Database path is not configured. Call set_db_path() or set NEON_LINK_DB_PATH environment variable.")
-	return Path(os.path.expanduser(env_path))
+	if env_path:
+		return Path(os.path.expanduser(env_path))
+
+	import platformdirs
+
+	return Path(platformdirs.user_data_dir("neon-link")) / "events.db"
 
 
 def with_retry(max_retries=3, base_delay=0.5):
@@ -153,12 +157,23 @@ def init_db():
 		)
 	""")
 
-	# MLS STATE PERSISTENCE: Serialized group states
+	# MLS STATE PERSISTENCE: Serialized group sessions
 	cursor.execute("""
 		CREATE TABLE IF NOT EXISTS mls_states (
 			group_id TEXT PRIMARY KEY,
 			state_payload BLOB NOT NULL,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	""")
+
+	# SESSIONS MAPPING: Abstraction layer mapping UUID to physical network endpoints
+	cursor.execute("""
+		CREATE TABLE IF NOT EXISTS sessions_mapping (
+			session_id TEXT PRIMARY KEY,
+			channel TEXT NOT NULL,
+			channel_user_id TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(channel, channel_user_id)
 		)
 	""")
 

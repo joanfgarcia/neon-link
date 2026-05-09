@@ -10,9 +10,8 @@ La auditoría v0.2.0 de Grok determinó que el sistema es apto para producción 
 - **Problema**: El callback de ingreso de Telegram ejecuta `asyncio.run(...)` directamente desde el hilo de polling. Aunque funcional, puede generar condiciones de carrera bajo estrés severo.
 - **Solución**: Sustituir la invocación directa por una cola _thread-safe_ (`asyncio.Queue`) o mediante el uso de `loop.call_soon_threadsafe(...)` para despachar los eventos al _event loop_ principal del `PluginManager`.
 
-### 2. Soporte Multi-Identidad Completo
-- **Problema**: Actualmente, `CryptoPipeline` toma por defecto la primera identidad disponible (`self.identity_mgr.identities[0]`). Es aceptable para el modelo de tenant actual, pero limitante para topologías multi-agente complejas.
-- **Solución**: Extender `CryptoPipeline` y el esquema de base de datos para mapear `group_id` a un `identity_alias` específico en cada mensaje/transacción.
+### 2. Soporte Multi-Identidad Completo (HECHO)
+- **Estado Real**: **[MIGRADO]**. Implementada la tabla `sessions_mapping` con UUIDs para abstraer los IDs físicos de Telegram, lo que permite que múltiples bots y agentes soberanos compartan el mismo middleware aislando los silos conversacionales.
 
 ### 3. Optimización de Transporte (Firebase)
 - **Problema**: FirebaseHub realiza _polling_ destructivo (`get()` seguido de `delete()`). Funciona bien para volúmenes moderados, pero bajo cargas masivas de mensajes genera sobrecarga (overhead).
@@ -34,6 +33,6 @@ La auditoría v0.2.0 de Grok determinó que el sistema es apto para producción 
 ### 7. Documentación Criptográfica
 - **Mejora**: Añadir un documento detallado en `docs/CORE/MLS_OPERATIONS.md` que detalle el ciclo de vida del grupo, cómo se propagan las propuestas/commits de `pure-mls`, y el funcionamiento del _epoch ratcheting_ (Forward Secrecy).
 
-### 8. Arquitectura de Plugins: Transición a un Modelo Desacoplado
-- **Decisión Arquitectónica**: Actualmente, `neon-link` opera como un "Monolito de Traducción" (ESB), donde los adaptadores de transporte (Telegram, Firebase, Rings) se implementan y mantienen directamente dentro de la carpeta `src/neon_link/plugins/`. Esto se hace por puro pragmatismo para acelerar la iteración y evitar la burocracia de mantener repositorios separados para cada adaptador.
-- **Evolución Futura**: Si el ecosistema crece significativamente (ej. >5 transportes diferentes) y el mantenimiento dentro de `neon-link` se vuelve inmanejable, se aplicará el patrón _Anti-Corruption Layer_. `neon-link` dejará de contener implementaciones y se convertirá en un núcleo puro que descubrirá plugins dinámicamente mediante `entry_points` de Python. Todo el código "pegamento" de adaptadores se extraerá a un nuevo repositorio soberano único llamado `neon-link-plugins`.
+### 8. Arquitectura de Plugins: Transición a un Modelo Desacoplado (HECHO)
+- **Estado Real**: **[MIGRADO]**. La estrategia inicial dictaba mantener un "Monolito de Traducción" temporalmente. Sin embargo, debido al crecimiento del protocolo P2P (Rings), hemos aplicado el patrón _Anti-Corruption Layer_ de manera proactiva.
+- **Solución Implementada**: `neon-link` ahora delega implementaciones complejas a repositorios soberanos independientes (ej. `neon-rings`), integrándolos como dependencias formales. Esto reduce la fricción de mantenimiento interno y aísla los fallos de red.

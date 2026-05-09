@@ -58,6 +58,7 @@ def test_poll_outbox_loop(mock_get_conn, manager_setup):
 	from unittest.mock import AsyncMock
 
 	manager_setup.pipeline.process_egress = AsyncMock(return_value=True)
+	manager_setup._resolve_session = MagicMock(return_value="user123")
 	manager_setup.running = True
 
 	def side_effect(*args):

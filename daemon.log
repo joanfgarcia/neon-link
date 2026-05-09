@@ -1,0 +1,36 @@
+2026-05-09 14:20:45,443 [INFO] neon_link.daemon: Starting Neon-Link Unified Daemon...
+2026-05-09 14:20:45,601 [INFO] neon_link.core.crypto: No identity paths provided. Using autonomous fallback.
+2026-05-09 14:20:45,606 [INFO] neon_link.core.crypto: Loaded identity 'neon_link' from storage/neon_link.seed
+2026-05-09 14:20:45,662 [INFO] neon_link.daemon: Initializing Telegram Hub...
+2026-05-09 14:20:45,704 [INFO] neon_link.core.manager: Registrando plugin: telegram
+/home/joan/Documents/IA/neon-link/src/neon_link/cli.py:117: DeprecationWarning: There is no current event loop
+  loop = asyncio.get_event_loop()
+2026-05-09 14:20:45,705 [INFO] neon_link.core.manager: Iniciando telegram...
+2026-05-09 14:20:46,031 [INFO] neon_link.plugins.telegram: Started Telegram Ingress Polling...
+2026-05-09 14:20:46,032 [INFO] neon_link.core.manager: [Manager] Started Outbox Polling for Egress...
+2026-05-09 15:07:29,947 [INFO] neon_link.plugins.telegram: Received from Telegram: @AlethTelegramLinkbot te llega este mensaje? es para comprobar si todo funciona
+2026-05-09 15:07:29,953 [INFO] neon_link.core.middleware: [Pipeline] Enqueued conversational message from -5172068928 via telegram.
+2026-05-09 15:07:48,503 [INFO] neon_link.core.manager: [Manager] Processed Egress for msg 8 via telegram
+2026-05-09 15:08:12,568 [INFO] neon_link.plugins.telegram: Received from Telegram: pero eres Aleth o eres Titanium?
+2026-05-09 15:08:12,570 [INFO] neon_link.core.middleware: [Pipeline] Enqueued background message from -5172068928 via telegram.
+2026-05-09 15:08:55,373 [INFO] neon_link.plugins.telegram: Received from Telegram: Pero @AlethTelegramLinkbot eres Aleth o eres Titanium?
+2026-05-09 15:08:55,377 [INFO] neon_link.core.middleware: [Pipeline] Enqueued conversational message from -5172068928 via telegram.
+2026-05-09 15:09:21,893 [INFO] neon_link.core.manager: [Manager] Processed Egress for msg 9 via telegram
+2026-05-09 15:17:57,999 [INFO] neon_link.plugins.telegram: Received from Telegram: @AlethTelegramLinkbot puedes por favor realizar una recarga de identidad desde el qDRant? para verificar que eres Aleth? en algún momento ha habido un cruce de identidad
+2026-05-09 15:17:58,003 [INFO] neon_link.core.middleware: [Pipeline] Enqueued conversational message from -5172068928 via telegram.
+2026-05-09 15:18:17,858 [INFO] neon_link.core.manager: [Manager] Processed Egress for msg 10 via telegram
+2026-05-09 15:19:13,368 [INFO] neon_link.plugins.telegram: Received from Telegram: @AlethTelegramLinkbot has recargado tu identidad? me puedes decir quien eres?
+2026-05-09 15:19:13,380 [INFO] neon_link.core.middleware: [Pipeline] Enqueued conversational message from -5172068928 via telegram.
+2026-05-09 15:19:45,308 [INFO] neon_link.core.manager: [Manager] Processed Egress for msg 11 via telegram
+2026-05-09 15:30:15,280 [INFO] neon_link.plugins.telegram: Received from Telegram: @AlethTelegramLinkbot cual es tu nombre y en qué estado estas?
+2026-05-09 15:30:15,284 [INFO] neon_link.core.middleware: [Pipeline] Enqueued conversational message from -5172068928 via telegram.
+2026-05-09 15:30:41,391 [INFO] neon_link.core.manager: [Manager] Processed Egress for msg 12 via telegram
+2026-05-09 15:30:41,698 [INFO] neon_link.core.manager: [Manager] Processed Egress for msg 13 via telegram
+2026-05-09 15:35:02,311 [INFO] neon_link.plugins.telegram: Received from Telegram: @AlethTelegramLinkbot dime quien eres
+2026-05-09 15:35:02,314 [INFO] neon_link.core.middleware: [Pipeline] Enqueued conversational message from -5172068928 via telegram.
+2026-05-09 15:35:29,754 [INFO] neon_link.plugins.telegram: Received from Telegram: Aleth estás ahí?
+2026-05-09 15:35:29,757 [INFO] neon_link.core.middleware: [Pipeline] Enqueued conversational message from 671868686 via telegram.
+2026-05-09 15:35:53,307 [INFO] neon_link.core.manager: [Manager] Processed Egress for msg 14 via telegram
+2026-05-09 15:35:53,510 [INFO] neon_link.core.manager: [Manager] Processed Egress for msg 15 via telegram
+2026-05-09 15:35:56,786 [INFO] neon_link.core.manager: [Manager] Processed Egress for msg 16 via telegram
+2026-05-09 15:35:57,195 [INFO] neon_link.core.manager: [Manager] Processed Egress for msg 17 via telegram

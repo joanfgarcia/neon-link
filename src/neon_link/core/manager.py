@@ -52,6 +52,20 @@ class PluginManager:
 		if hasattr(self, "t_egress"):
 			self.t_egress.join(timeout=2.0)
 
+	def _resolve_session(self, session_id: str) -> str:
+		"""Translates a UUID session_id back to the physical channel_user_id. Fallbacks to itself if not found (legacy)."""
+		conn = get_connection()
+		try:
+			conn.row_factory = sqlite3.Row
+			cursor = conn.cursor()
+			cursor.execute("SELECT channel_user_id FROM sessions_mapping WHERE session_id = ?", (session_id,))
+			row = cursor.fetchone()
+			if row:
+				return row["channel_user_id"]
+			return session_id
+		finally:
+			conn.close()
+
 	def _poll_outbox_loop(self):
 		"""Poll SQLite outbox and route through Egress Pipeline"""
 		logger.info("[Manager] Started Outbox Polling for Egress...")
@@ -72,7 +86,10 @@ class PluginManager:
 						plugin = self.plugins[channel]
 						payload_json = json.loads(row["payload"])
 						text = payload_json.get("text", "No text provided")
-						recipient_id = row["channel_user_id"]
+						session_id = row["channel_user_id"]
+
+						# Translate UUID session back to real Telegram chat ID
+						recipient_id = self._resolve_session(session_id)
 
 						# Pass through CryptoPipeline
 						success = loop.run_until_complete(self.pipeline.process_egress(plugin, recipient_id, text))
