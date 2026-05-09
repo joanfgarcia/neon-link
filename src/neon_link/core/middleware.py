@@ -146,12 +146,13 @@ class CryptoPipeline:
 			text = decoded.get("text", plaintext)
 			group_size = decoded.get("group_size", 100)  # Assumes massive if missing
 			priority = decoded.get("priority", "normal")
+			mode = decoded.get("mode", "background")
 		except Exception:
 			text = plaintext
 			group_size = 100
 			priority = "normal"
+			mode = "background"
 
-		mode = "background"
 		if group_size <= 2 and priority == "critical":
 			mode = "conversational"
 
