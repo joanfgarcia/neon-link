@@ -67,7 +67,7 @@ class TelegramHub(NetworkPlugin):
 		chat_id = str(message["chat"]["id"])
 		chat_type = message["chat"].get("type", "private")
 		raw_text = message.get("text", "")
-		
+
 		sender = message.get("from", {})
 		sender_name = sender.get("username") or sender.get("first_name", "Unknown")
 		is_bot = sender.get("is_bot", False)
@@ -100,8 +100,8 @@ class TelegramHub(NetworkPlugin):
 				mode = "background"
 				formatted_text = f"[{sender_name}] {raw_text[4:].strip()}"
 			elif chat_type in ["group", "supergroup"] and bot_username:
-				mode = "background" # Default for groups
-				
+				mode = "background"  # Default for groups
+
 				if is_bot:
 					# Bot-to-Bot Protocol (B2BP)
 					# Requires strict syntax to trigger conversational mode and prevent infinite loops
@@ -111,7 +111,7 @@ class TelegramHub(NetworkPlugin):
 					# Human operator
 					if f"@{bot_username}" in raw_text:
 						mode = "conversational"
-						
+
 				formatted_text = f"[{sender_name}] {raw_text}"
 			else:
 				formatted_text = f"[{sender_name}] {raw_text}"

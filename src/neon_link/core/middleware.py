@@ -141,6 +141,7 @@ class CryptoPipeline:
 
 	def _get_or_create_session(self, channel: str, channel_user_id: str) -> str:
 		import uuid
+
 		conn = get_connection()
 		try:
 			conn.row_factory = sqlite3.Row
@@ -149,9 +150,11 @@ class CryptoPipeline:
 			row = cursor.fetchone()
 			if row:
 				return row["session_id"]
-			
+
 			session_id = str(uuid.uuid4())
-			cursor.execute("INSERT INTO sessions_mapping (session_id, channel, channel_user_id) VALUES (?, ?, ?)", (session_id, channel, channel_user_id))
+			cursor.execute(
+				"INSERT INTO sessions_mapping (session_id, channel, channel_user_id) VALUES (?, ?, ?)", (session_id, channel, channel_user_id)
+			)
 			conn.commit()
 			return session_id
 		finally:

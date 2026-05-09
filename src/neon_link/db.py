@@ -24,12 +24,13 @@ def get_db_path() -> Path:
 	"""Obtiene la ruta actual, con fallback a variables de entorno o directorio nativo de datos."""
 	if _DB_PATH is not None:
 		return _DB_PATH
-	
+
 	env_path = os.environ.get("NEON_LINK_DB_PATH")
 	if env_path:
 		return Path(os.path.expanduser(env_path))
-		
+
 	import platformdirs
+
 	return Path(platformdirs.user_data_dir("neon-link")) / "events.db"
 
 
