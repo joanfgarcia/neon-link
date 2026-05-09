@@ -156,12 +156,23 @@ def init_db():
 		)
 	""")
 
-	# MLS STATE PERSISTENCE: Serialized group states
+	# MLS STATE PERSISTENCE: Serialized group sessions
 	cursor.execute("""
 		CREATE TABLE IF NOT EXISTS mls_states (
 			group_id TEXT PRIMARY KEY,
 			state_payload BLOB NOT NULL,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	""")
+
+	# SESSIONS MAPPING: Abstraction layer mapping UUID to physical network endpoints
+	cursor.execute("""
+		CREATE TABLE IF NOT EXISTS sessions_mapping (
+			session_id TEXT PRIMARY KEY,
+			channel TEXT NOT NULL,
+			channel_user_id TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(channel, channel_user_id)
 		)
 	""")
 

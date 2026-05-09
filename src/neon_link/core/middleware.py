@@ -139,6 +139,24 @@ class CryptoPipeline:
 			else:
 				logger.warning(f"[Pipeline] Received ciphertext for unknown group {group_id}")
 
+	def _get_or_create_session(self, channel: str, channel_user_id: str) -> str:
+		import uuid
+		conn = get_connection()
+		try:
+			conn.row_factory = sqlite3.Row
+			cursor = conn.cursor()
+			cursor.execute("SELECT session_id FROM sessions_mapping WHERE channel = ? AND channel_user_id = ?", (channel, channel_user_id))
+			row = cursor.fetchone()
+			if row:
+				return row["session_id"]
+			
+			session_id = str(uuid.uuid4())
+			cursor.execute("INSERT INTO sessions_mapping (session_id, channel, channel_user_id) VALUES (?, ?, ?)", (session_id, channel, channel_user_id))
+			conn.commit()
+			return session_id
+		finally:
+			conn.close()
+
 	def _enqueue_inbox(self, channel: str, sender_id: str, plaintext: str):
 		# Extract Routing Policy from decrypted JSON
 		try:
@@ -156,6 +174,9 @@ class CryptoPipeline:
 		if group_size <= 2 and priority == "critical":
 			mode = "conversational"
 
+		# Abstraction: Create a UUID session for this channel + sender_id (chat_id)
+		session_id = self._get_or_create_session(channel, sender_id)
+
 		payload = json.dumps({"text": text, "sender_id": sender_id, "mode": mode})
 		message_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -163,7 +184,7 @@ class CryptoPipeline:
 		try:
 			cursor = conn.execute(
 				"INSERT OR IGNORE INTO inbox (message_id, channel, channel_user_id, payload) VALUES (?, ?, ?, ?)",
-				(message_id, channel, sender_id, payload),
+				(message_id, channel, session_id, payload),
 			)
 			if cursor.rowcount > 0:
 				conn.commit()

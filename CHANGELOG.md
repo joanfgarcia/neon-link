@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [0.3.2] - 2026-05-09
 
+### Added
+- **Session ID Abstraction**: Migrated routing from raw Telegram chat IDs to UUID-based Session IDs (`sessions_mapping`). This securely isolates parallel multi-bot architectures sharing the same SQLite instance and enables platform-agnostic conversation state.
+
 ### Fixed
 - **Event Router Mode Extraction**: Middleware `_enqueue_inbox` now dynamically extracts the `mode` parameter from decrypted payloads, properly routing `conversational` messages instead of forcing them into the `background` queue.
 

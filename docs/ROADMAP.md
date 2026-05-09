@@ -10,9 +10,8 @@ La auditoría v0.2.0 de Grok determinó que el sistema es apto para producción 
 - **Problema**: El callback de ingreso de Telegram ejecuta `asyncio.run(...)` directamente desde el hilo de polling. Aunque funcional, puede generar condiciones de carrera bajo estrés severo.
 - **Solución**: Sustituir la invocación directa por una cola _thread-safe_ (`asyncio.Queue`) o mediante el uso de `loop.call_soon_threadsafe(...)` para despachar los eventos al _event loop_ principal del `PluginManager`.
 
-### 2. Soporte Multi-Identidad Completo
-- **Problema**: Actualmente, `CryptoPipeline` toma por defecto la primera identidad disponible (`self.identity_mgr.identities[0]`). Es aceptable para el modelo de tenant actual, pero limitante para topologías multi-agente complejas.
-- **Solución**: Extender `CryptoPipeline` y el esquema de base de datos para mapear `group_id` a un `identity_alias` específico en cada mensaje/transacción.
+### 2. Soporte Multi-Identidad Completo (HECHO)
+- **Estado Real**: **[MIGRADO]**. Implementada la tabla `sessions_mapping` con UUIDs para abstraer los IDs físicos de Telegram, lo que permite que múltiples bots y agentes soberanos compartan el mismo middleware aislando los silos conversacionales.
 
 ### 3. Optimización de Transporte (Firebase)
 - **Problema**: FirebaseHub realiza _polling_ destructivo (`get()` seguido de `delete()`). Funciona bien para volúmenes moderados, pero bajo cargas masivas de mensajes genera sobrecarga (overhead).
