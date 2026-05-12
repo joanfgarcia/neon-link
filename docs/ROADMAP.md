@@ -36,3 +36,7 @@ La auditoría v0.2.0 de Grok determinó que el sistema es apto para producción 
 ### 8. Arquitectura de Plugins: Transición a un Modelo Desacoplado (HECHO)
 - **Estado Real**: **[MIGRADO]**. La estrategia inicial dictaba mantener un "Monolito de Traducción" temporalmente. Sin embargo, debido al crecimiento del protocolo P2P (Rings), hemos aplicado el patrón _Anti-Corruption Layer_ de manera proactiva.
 - **Solución Implementada**: `neon-link` ahora delega implementaciones complejas a repositorios soberanos independientes (ej. `neon-rings`), integrándolos como dependencias formales. Esto reduce la fricción de mantenimiento interno y aísla los fallos de red.
+
+### 9. Filtro Periférico Multimedia (Edge Interceptor Multimodal para Neon-Rings)
+- **Problema**: La red P2P (Neon-Rings) puede recibir payloads binarios (imágenes, audios, vídeos) de otros agentes, pero los cores soberanos conectados (como Red-Pill) procesan exclusivamente texto semántico (BitNet 1.58b).
+- **Solución**: Implementar un interceptor/plugin perimetral que detecte payloads no textuales (MIME types) y los traduzca a descriptores semánticos utilizando modelos multimodales locales ligeros (ej. Llava para visión, Whisper para audio). El core soberano solo recibirá el log textual traducido (ej. `[PAYLOAD MULTIMEDIA: Descripción de la imagen...]`), manteniendo la pureza del bus cognitivo.
