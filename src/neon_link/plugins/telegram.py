@@ -81,6 +81,24 @@ class TelegramHub(NetworkPlugin):
 			self.send_message(chat_id, "⚡ Bünker Neon-Link conectado. Gateway I/O Activo. Esperando inputs.")
 			return
 
+		if raw_text.startswith("/help"):
+			help_text = (
+				"🛡️ **Sovereign Telegram Gateway**\n\n"
+				"Comandos disponibles:\n"
+				"• `/list` - Lista las sesiones de Córtex activas.\n"
+				"• `/switch <número>` - Ancla el bot a la sesión deseada.\n"
+				"• `/new` - Inicia una nueva sesión Headless limpia.\n"
+				"• `/bg <mensaje>` - Envía el mensaje en background (modo Minion).\n"
+				"• `/help` - Muestra esta ayuda."
+			)
+			self.send_message(chat_id, help_text)
+			return
+
+		if raw_text.startswith("/new"):
+			import time
+			payload = json.dumps({"command": "NEW_CASCADE", "mode": "conversational", "_t": time.time()})
+			self.send_message(chat_id, "✨ Iniciando nueva sesión Headless...")
+
 		if raw_text.startswith("/list"):
 			payload = json.dumps({"command": "LIST_CASCADES", "mode": "conversational"})
 			self.send_message(chat_id, "🔍 Buscando sesiones activas en el Córtex...")
