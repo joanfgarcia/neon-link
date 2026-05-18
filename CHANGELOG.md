@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.6] - 2026-05-18
+### Added
+- Timestamp injection into `/list`, `/switch` and text payloads to bypass deduplication.
+- `cascade_type` column to SQLite schema for background session isolation.
+- Headless Sandbox `/new` command block restored.
+
 ## [0.3.5] - 2026-05-18
 
 ### Fixed
