@@ -96,6 +96,7 @@ class TelegramHub(NetworkPlugin):
 
 		if raw_text.startswith("/new"):
 			import time
+
 			payload = json.dumps({"command": "NEW_CASCADE", "mode": "conversational", "_t": time.time()})
 			self.send_message(chat_id, "✨ Iniciando nueva sesión Headless...")
 
