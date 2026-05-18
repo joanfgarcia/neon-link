@@ -4,9 +4,6 @@ version = "0.3.3"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
 dependencies = [
     "fastapi>=0.136.1",
     "firebase-admin>=7.4.0",
@@ -52,3 +49,6 @@ strict = false
 ignore_missing_imports = true
 check_untyped_defs = true
 explicit_package_bases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
