@@ -100,13 +100,17 @@ class TelegramHub(NetworkPlugin):
 			payload = json.dumps({"command": "NEW_CASCADE", "mode": "conversational", "_t": time.time()})
 			self.send_message(chat_id, "✨ Iniciando nueva sesión Headless...")
 
-		if raw_text.startswith("/list"):
-			payload = json.dumps({"command": "LIST_CASCADES", "mode": "conversational"})
+		elif raw_text.startswith("/list"):
+			import time
+
+			payload = json.dumps({"command": "LIST_CASCADES", "mode": "conversational", "_t": time.time()})
 			self.send_message(chat_id, "🔍 Buscando sesiones activas en el Córtex...")
 		elif raw_text.startswith("/switch "):
 			parts = raw_text.split(" ")
 			if len(parts) == 2 and parts[1].isdigit():
-				payload = json.dumps({"command": "SWITCH_CASCADE", "index": int(parts[1]), "mode": "conversational"})
+				import time
+
+				payload = json.dumps({"command": "SWITCH_CASCADE", "index": int(parts[1]), "mode": "conversational", "_t": time.time()})
 			else:
 				self.send_message(chat_id, "❌ Uso: /switch <número>")
 				return
@@ -135,7 +139,9 @@ class TelegramHub(NetworkPlugin):
 			else:
 				formatted_text = f"[{sender_name}] {raw_text}"
 
-			payload = json.dumps({"text": formatted_text, "mode": mode})
+			import time
+
+			payload = json.dumps({"text": formatted_text, "mode": mode, "_t": time.time()})
 
 		# Check health
 		if not self.check_red_pill_health():

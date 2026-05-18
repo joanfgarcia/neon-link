@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.5] - 2026-05-18
+
+### Fixed
+- **Telegram `/new` Bug**: Fixed an issue where the `/new` command's `NEW_CASCADE` internal payload was being incorrectly overwritten by the default message router.
+
 ## [0.3.4] - 2026-05-18
 
 ### Added
