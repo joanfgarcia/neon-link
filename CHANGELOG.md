@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.4] - 2026-05-18
+
+### Added
+- **Bot Commands Menu**: Neon-Link now automatically registers the quick commands menu (via `setMyCommands` Telegram API) when starting up, ensuring `/help`, `/new`, `/list`, `/switch` and `/bg` are available in the UI.
+
 ## [0.3.3] - 2026-05-18
 
 ### Added

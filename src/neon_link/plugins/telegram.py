@@ -181,6 +181,22 @@ class TelegramHub(NetworkPlugin):
 			except Exception as e:
 				logger.error(f"Failed to fetch bot username: {e}")
 
+			try:
+				commands_payload = {
+					"commands": [
+						{"command": "help", "description": "Muestra la ayuda de comandos"},
+						{"command": "list", "description": "Lista las sesiones activas"},
+						{"command": "switch", "description": "Ancla el bot a una sesión"},
+						{"command": "new", "description": "Inicia una sesión Headless"},
+						{"command": "bg", "description": "Envía un mensaje en background"},
+					]
+				}
+				resp = requests.post(f"https://api.telegram.org/bot{self.bot_token}/setMyCommands", json=commands_payload, timeout=10)
+				if resp.status_code != 200:
+					logger.warning(f"Failed to set bot commands: {resp.text}")
+			except Exception as e:
+				logger.error(f"Failed to set bot commands: {e}")
+
 		self.t_ingress = threading.Thread(target=self.poll_telegram)
 		self.t_ingress.daemon = True
 		self.t_ingress.start()
