@@ -1,6 +1,6 @@
 [project]
 name = "neon-link"
-version = "0.3.2"
+version = "0.3.3"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -49,3 +49,6 @@ strict = false
 ignore_missing_imports = true
 check_untyped_defs = true
 explicit_package_bases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

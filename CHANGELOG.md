@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3] - 2026-05-18
+
+### Added
+- **Headless Commands**: Added `/help` and `/new` commands to the Telegram plugin to initialize and manage headless conversational sessions via Telegram.
+
 ## [0.3.2] - 2026-05-09
 
 ### Added
