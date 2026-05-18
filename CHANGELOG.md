@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.6] - 2026-05-18
+### Added
+- Timestamp injection into `/list`, `/switch` and text payloads to bypass deduplication.
+- `cascade_type` column to SQLite schema for background session isolation.
+- Headless Sandbox `/new` command block restored.
+
+## [0.3.5] - 2026-05-18
+
+### Fixed
+- **Telegram `/new` Bug**: Fixed an issue where the `/new` command's `NEW_CASCADE` internal payload was being incorrectly overwritten by the default message router.
+
+## [0.3.4] - 2026-05-18
+
+### Added
+- **Bot Commands Menu**: Neon-Link now automatically registers the quick commands menu (via `setMyCommands` Telegram API) when starting up, ensuring `/help`, `/new`, `/list`, `/switch` and `/bg` are available in the UI.
+
 ## [0.3.3] - 2026-05-18
 
 ### Added

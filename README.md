@@ -87,3 +87,4 @@ t_hub = TelegramHub(identity_manager, bot_token="TOKEN", allowed_user_id="ID")
 ```
 
 Para más detalles, consulta nuestra [Guía de Uso](docs/GUIDES/USAGE.md) y los [Ejemplos](docs/EXAMPLES/CURL_EXAMPLES.md).
+ 

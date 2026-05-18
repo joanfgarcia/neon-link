@@ -114,6 +114,8 @@ def init_db():
 		cursor.execute("ALTER TABLE inbox ADD COLUMN message_id TEXT UNIQUE")
 	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE outbox ADD COLUMN message_id TEXT UNIQUE")
+	with contextlib.suppress(sqlite3.OperationalError):
+		cursor.execute("ALTER TABLE telegram_sessions ADD COLUMN cascade_type TEXT DEFAULT 'interactive'")
 
 	# DEAD LETTERS: Messages that failed to process 3 times
 	cursor.execute("""
@@ -142,6 +144,7 @@ def init_db():
 		CREATE TABLE IF NOT EXISTS telegram_sessions (
 			channel_user_id TEXT PRIMARY KEY,
 			cascade_id TEXT,
+			cascade_type TEXT DEFAULT 'interactive',
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	""")

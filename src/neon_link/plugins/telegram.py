@@ -100,13 +100,17 @@ class TelegramHub(NetworkPlugin):
 			payload = json.dumps({"command": "NEW_CASCADE", "mode": "conversational", "_t": time.time()})
 			self.send_message(chat_id, "✨ Iniciando nueva sesión Headless...")
 
-		if raw_text.startswith("/list"):
-			payload = json.dumps({"command": "LIST_CASCADES", "mode": "conversational"})
+		elif raw_text.startswith("/list"):
+			import time
+
+			payload = json.dumps({"command": "LIST_CASCADES", "mode": "conversational", "_t": time.time()})
 			self.send_message(chat_id, "🔍 Buscando sesiones activas en el Córtex...")
 		elif raw_text.startswith("/switch "):
 			parts = raw_text.split(" ")
 			if len(parts) == 2 and parts[1].isdigit():
-				payload = json.dumps({"command": "SWITCH_CASCADE", "index": int(parts[1]), "mode": "conversational"})
+				import time
+
+				payload = json.dumps({"command": "SWITCH_CASCADE", "index": int(parts[1]), "mode": "conversational", "_t": time.time()})
 			else:
 				self.send_message(chat_id, "❌ Uso: /switch <número>")
 				return
@@ -135,7 +139,9 @@ class TelegramHub(NetworkPlugin):
 			else:
 				formatted_text = f"[{sender_name}] {raw_text}"
 
-			payload = json.dumps({"text": formatted_text, "mode": mode})
+			import time
+
+			payload = json.dumps({"text": formatted_text, "mode": mode, "_t": time.time()})
 
 		# Check health
 		if not self.check_red_pill_health():
@@ -180,6 +186,22 @@ class TelegramHub(NetworkPlugin):
 					os.environ["TELEGRAM_BOT_USERNAME"] = resp.json()["result"]["username"]
 			except Exception as e:
 				logger.error(f"Failed to fetch bot username: {e}")
+
+			try:
+				commands_payload = {
+					"commands": [
+						{"command": "help", "description": "Muestra la ayuda de comandos"},
+						{"command": "list", "description": "Lista las sesiones activas"},
+						{"command": "switch", "description": "Ancla el bot a una sesión"},
+						{"command": "new", "description": "Inicia una sesión Headless"},
+						{"command": "bg", "description": "Envía un mensaje en background"},
+					]
+				}
+				resp = requests.post(f"https://api.telegram.org/bot{self.bot_token}/setMyCommands", json=commands_payload, timeout=10)
+				if resp.status_code != 200:
+					logger.warning(f"Failed to set bot commands: {resp.text}")
+			except Exception as e:
+				logger.error(f"Failed to set bot commands: {e}")
 
 		self.t_ingress = threading.Thread(target=self.poll_telegram)
 		self.t_ingress.daemon = True
