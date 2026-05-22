@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import socket
 import sys
 import time
 from pathlib import Path
@@ -12,6 +13,22 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("neon_link.daemon")
 
 APP_NAME = "neon-link"
+
+
+def _sd_notify(state: str) -> None:
+	"""Send a notification to systemd (WatchdogSec / Type=notify). No-op if not under systemd."""
+	addr = os.environ.get("NOTIFY_SOCKET")
+	if not addr:
+		return
+	try:
+		sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+		if addr[0] == "@":
+			addr = "\0" + addr[1:]
+		sock.sendto(state.encode(), addr)
+		sock.close()
+	except Exception:
+		pass
+
 
 
 def get_config_dir() -> Path:
@@ -117,12 +134,15 @@ def start_daemon():
 	loop = asyncio.get_event_loop()
 	loop.run_until_complete(manager.start_all())
 
+	_sd_notify("READY=1")
 	try:
 		while True:
+			_sd_notify("WATCHDOG=1")
 			time.sleep(1)
 	except KeyboardInterrupt:
 		logger.info("Shutting down Neon-Link Daemon...")
 		loop.run_until_complete(manager.stop_all())
+
 
 
 def main():
