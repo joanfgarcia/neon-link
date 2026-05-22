@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-05-22
+
+### Added
+- **systemd Watchdog Integration**: Neon-Link now sends `sd_notify("WATCHDOG=1")` heartbeats from its main loop, enabling systemd `WatchdogSec` to auto-restart the daemon if it hangs. Zero external dependencies — uses raw Unix domain sockets.
+- **sd_notify READY signal**: Sends `READY=1` after full initialization, allowing `Type=notify` in the systemd unit for proper startup tracking.
+
+### Fixed
+- **Duplicate Service Prevention**: Discovered and eliminated a duplicate `redpill-neonlink.service` that ran alongside `neon-link.service` for 10+ hours, causing 4x Telegram response amplification. Root cause: legacy PyPI-installed service coexisting with dev-project service.
+
+### Removed
+- **neon-link-healer** (service + timer + script): Replaced by native systemd `WatchdogSec=3` + `Restart=on-failure`. The healer's curl-based polling was unable to detect the duplicate service incident.
+
+### Changed
+- Unit file updated: `Type=simple` → `Type=notify`, added `WatchdogSec=3`, `NotifyAccess=all`, `Restart=on-failure`.
+
 ## [0.3.6] - 2026-05-18
 ### Added
 - Timestamp injection into `/list`, `/switch` and text payloads to bypass deduplication.
