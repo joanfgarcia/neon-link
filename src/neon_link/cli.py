@@ -30,7 +30,6 @@ def _sd_notify(state: str) -> None:
 		pass
 
 
-
 def get_config_dir() -> Path:
 	return Path(platformdirs.user_config_dir(APP_NAME))
 
@@ -142,7 +141,6 @@ def start_daemon():
 	except KeyboardInterrupt:
 		logger.info("Shutting down Neon-Link Daemon...")
 		loop.run_until_complete(manager.stop_all())
-
 
 
 def main():
