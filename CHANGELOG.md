@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - Unreleased
+
+### Added
+- **P2P Transport (neon-rings integration)**: Integrated `neon-rings` into `neon-link` as a P2P `NetworkPlugin` (`rings.py`), allowing P2P MLS-encrypted transport.
+- **Rings DHT KeyPackage Sharing**: Enabled P2P MLS `KeyPackage` publishing to and fetching from the Rings DHT, securing P2P sessions setup.
+- **Rings Configuration**: Added `ENABLE_RINGS` and `RINGS_ENDPOINT_URL` configuration parameters to the environment configuration.
+
+### Changed
+- **MLS E2EE support**: Updated `CryptoPipeline` egress and ingress paths to enforce MLS encryption for the `rings` plugin just like the `firebase` channel.
+
 ## [0.4.0] - 2026-05-22
 
 ### Added
