@@ -29,8 +29,8 @@ class PluginManager:
 		plugin.register_callback(self.pipeline.process_ingress)
 		self.plugins[plugin.name] = plugin
 
-		# Publish keys if plugin is firebase
-		if plugin.name == "firebase" and hasattr(plugin, "publish_my_key_package"):
+		# Publish keys if plugin is firebase or rings
+		if plugin.name in ["firebase", "rings"] and hasattr(plugin, "publish_my_key_package"):
 			plugin.publish_my_key_package(self.pipeline.get_public_key_package())
 
 	async def start_all(self):
