@@ -169,6 +169,14 @@ def init_db():
 		)
 	""")
 
+	# PROCESSED FIREBASE MESSAGES: tracking table for non-destructive polling duplicate check
+	cursor.execute("""
+		CREATE TABLE IF NOT EXISTS processed_firebase_messages (
+			msg_id TEXT PRIMARY KEY,
+			processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	""")
+
 	# SESSIONS MAPPING: Abstraction layer mapping UUID to physical network endpoints
 	cursor.execute("""
 		CREATE TABLE IF NOT EXISTS sessions_mapping (

@@ -52,6 +52,10 @@ class CryptoPipeline:
 		"""
 		Takes plaintext, encrypts if necessary, and sends via plugin.
 		"""
+		if channel_user_id == "broadcast":
+			event = NetworkEvent(type="broadcast", recipient_id="broadcast", payload=payload_str.encode())
+			return await plugin.send_event(event)
+
 		# We assume firebase and rings require E2E.
 		if plugin.name not in ["firebase", "rings"]:
 			# Just pass plaintext
@@ -100,6 +104,10 @@ class CryptoPipeline:
 		Receives an event from the plugin, decrypts if it's E2E, and enqueues to inbox.
 		"""
 		group_id = event.recipient_id  # Either group_id or user_id depending on context
+
+		if event.type == "broadcast":
+			self._enqueue_inbox(plugin.name, sender_id, event.payload.decode("utf-8"))
+			return
 
 		if plugin.name not in ["firebase", "rings"]:
 			# Plaintext

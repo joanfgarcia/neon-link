@@ -80,6 +80,9 @@ def test_firebase_poll(mock_cred, mock_admin, mock_db):
 	mock_ref.get.return_value = {"msg1": {"payload": b"hello".hex(), "sender_id": "alice"}}
 	mock_db.reference.return_value = mock_ref
 
+	hub._is_msg_processed = MagicMock(return_value=False)
+	hub._mark_msg_processed = MagicMock()
+
 	def stop_loop(*args):
 		hub.running = False
 
@@ -87,8 +90,8 @@ def test_firebase_poll(mock_cred, mock_admin, mock_db):
 		hub._poll_firebase()
 
 	hub._on_event_callback.assert_called()
-	mock_ref.child.assert_called_with("msg1")
-	mock_ref.child().delete.assert_called()
+	hub._is_msg_processed.assert_called_with("msg1")
+	hub._mark_msg_processed.assert_called_with("msg1")
 
 
 @pytest.mark.asyncio
@@ -146,3 +149,66 @@ def test_publish_key_package_error():
 	hub.app = MagicMock()
 	with patch("neon_link.plugins.firebase.db.reference", side_effect=Exception("error")):
 		hub.publish_my_key_package(b"test")
+
+
+@pytest.mark.asyncio
+@patch("neon_link.plugins.firebase.db")
+@patch("neon_link.plugins.firebase.firebase_admin")
+@patch("neon_link.plugins.firebase.credentials")
+async def test_firebase_send_broadcast(mock_cred, mock_admin, mock_db):
+	identity = MagicMock()
+	hub = FirebaseHub(identity, agent_id="test_agent")
+	hub.app = MagicMock()
+
+	mock_ref = MagicMock()
+	mock_db.reference.return_value = mock_ref
+
+	event = NetworkEvent(type="broadcast", recipient_id="broadcast", payload=b"broadcast_payload")
+	res = await hub.send_event(event)
+
+	assert res is True
+	mock_db.reference.assert_called_with("communities/default_community/broadcast", app=hub.app)
+	mock_ref.push.assert_called()
+
+
+@patch("neon_link.plugins.firebase.db")
+@patch("neon_link.plugins.firebase.firebase_admin")
+@patch("neon_link.plugins.firebase.credentials")
+def test_firebase_cleanup(mock_cred, mock_admin, mock_db):
+	mock_admin.get_app.side_effect = ValueError("App does not exist")
+	identity = MagicMock()
+	hub = FirebaseHub(identity, agent_id="test_agent")
+	hub.app = MagicMock()
+	hub.running = True
+
+	mock_inbox_ref = MagicMock()
+	mock_inbox_ref.get.return_value = {
+		"old_msg": {"timestamp": 10.0, "sender_id": "other"},
+		"new_msg": {"timestamp": 9999999999.0, "sender_id": "other"}
+	}
+	
+	mock_broadcast_ref = MagicMock()
+	mock_broadcast_ref.get.return_value = {
+		"old_broadcast": {"timestamp": 10.0, "sender_id": "test_agent"},
+		"old_broadcast_other": {"timestamp": 10.0, "sender_id": "other"}
+	}
+
+	def ref_side_effect(path, app):
+		if "mailboxes" in path:
+			return mock_inbox_ref
+		return mock_broadcast_ref
+
+	mock_db.reference.side_effect = ref_side_effect
+
+	with patch("neon_link.db.get_connection"):
+		def stop_loop(*args):
+			hub.running = False
+		with patch("time.sleep", side_effect=stop_loop):
+			hub._cleanup_loop()
+
+	mock_inbox_ref.child.assert_any_call("old_msg")
+	mock_inbox_ref.child().delete.assert_called()
+
+	mock_broadcast_ref.child.assert_any_call("old_broadcast")
+	with pytest.raises(AssertionError):
+		mock_broadcast_ref.child.assert_any_call("old_broadcast_other")
