@@ -102,6 +102,7 @@ class FirebaseHub(NetworkPlugin):
 
 	def _is_msg_processed(self, msg_id: str) -> bool:
 		from neon_link.db import get_connection
+
 		conn = get_connection()
 		try:
 			cursor = conn.cursor()
@@ -115,6 +116,7 @@ class FirebaseHub(NetworkPlugin):
 
 	def _mark_msg_processed(self, msg_id: str):
 		from neon_link.db import get_connection
+
 		conn = get_connection()
 		try:
 			conn.execute("INSERT OR IGNORE INTO processed_firebase_messages (msg_id) VALUES (?)", (msg_id,))
@@ -226,11 +228,11 @@ class FirebaseHub(NetworkPlugin):
 				# Sweep 3: Clean local processed message cache in events.db (processed_at < 2 * TTL_HOURS ago)
 				local_threshold_hours = self.ttl_hours * 2.0
 				from neon_link.db import get_connection
+
 				conn = get_connection()
 				try:
 					conn.execute(
-						"DELETE FROM processed_firebase_messages WHERE processed_at < datetime('now', ?)",
-						(f"-{local_threshold_hours} hours",)
+						"DELETE FROM processed_firebase_messages WHERE processed_at < datetime('now', ?)", (f"-{local_threshold_hours} hours",)
 					)
 					conn.commit()
 				except Exception as e:

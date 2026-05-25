@@ -92,11 +92,7 @@ class RingsHub(NetworkPlugin):
 			return False
 
 		try:
-			payload = {
-				"type": event.type,
-				"recipient_id": event.recipient_id,
-				"payload_hex": event.payload.hex()
-			}
+			payload = {"type": event.type, "recipient_id": event.recipient_id, "payload_hex": event.payload.hex()}
 			# Send via Rings P2P client
 			res = await self.client.send_message(target_id=event.recipient_id, payload=payload)
 			if isinstance(res, dict) and res.get("ok") and res.get("delivered"):
@@ -120,11 +116,7 @@ class RingsHub(NetworkPlugin):
 			recipient_id = payload.get("recipient_id", self.agent_id)
 
 			if payload_hex:
-				event = NetworkEvent(
-					type=mls_type,
-					recipient_id=recipient_id,
-					payload=bytes.fromhex(payload_hex)
-				)
+				event = NetworkEvent(type=mls_type, recipient_id=recipient_id, payload=bytes.fromhex(payload_hex))
 				# Dispatch to Crypto Pipeline
 				await self._on_event_callback(self, sender_id, event)
 		except Exception as e:

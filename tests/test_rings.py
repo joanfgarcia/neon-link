@@ -64,12 +64,7 @@ async def test_rings_send_event(mock_client_class):
 
 	assert success is True
 	mock_client.send_message.assert_called_once_with(
-		target_id="bob",
-		payload={
-			"type": "application",
-			"recipient_id": "bob",
-			"payload_hex": b"hello".hex()
-		}
+		target_id="bob", payload={"type": "application", "recipient_id": "bob", "payload_hex": b"hello".hex()}
 	)
 
 
@@ -131,11 +126,7 @@ async def test_rings_handle_message(mock_client_class):
 	await hub.start()
 
 	# Simulate incoming P2P message
-	payload = {
-		"type": "application",
-		"recipient_id": "test_agent",
-		"payload_hex": b"hello_p2p".hex()
-	}
+	payload = {"type": "application", "recipient_id": "test_agent", "payload_hex": b"hello_p2p".hex()}
 	await hub._handle_message("alice", payload)
 
 	cb.assert_called_once()

@@ -760,7 +760,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "firebase-admin", specifier = ">=7.4.0" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "neon-rings", directory = "../neon-rings" },
+    { name = "neon-rings", specifier = ">=0.1.1" },
     { name = "platformdirs", specifier = ">=4.2.0" },
     { name = "pure-mls", specifier = ">=3.0.5.1" },
     { name = "pydantic", specifier = ">=2.13.3" },
@@ -781,28 +781,14 @@ dev = [
 [[package]]
 name = "neon-rings"
 version = "0.1.1"
-source = { directory = "../neon-rings" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "websockets" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", marker = "extra == 'dev'", specifier = ">=3.9.0" },
-    { name = "cryptography", specifier = ">=41.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.3.0" },
-    { name = "websockets", specifier = ">=12.0" },
-]
-provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=2.0.0" },
-    { name = "pytest-cov", specifier = ">=7.1.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/fb/76/1f3a5bd788d014c10b3f23cf600076ec7e823d76c84f55cfce8ed98d766f/neon_rings-0.1.1.tar.gz", hash = "sha256:348ac2738d3337cdc7f4cdb18e8717ecc45ccd7a354022978fcb94973af04591", size = 138984, upload-time = "2026-05-25T22:13:33.259Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d4/f2/f80564cba8a578cc82b1fb2cfa919486dcaf2e067683ff93b91183f316c5/neon_rings-0.1.1-py3-none-any.whl", hash = "sha256:1c10922ce30b5db8840bd45cff2ddd4af50d0760d6a67415c422b6c162777f96", size = 26959, upload-time = "2026-05-25T22:13:32.081Z" },
 ]
 
 [[package]]

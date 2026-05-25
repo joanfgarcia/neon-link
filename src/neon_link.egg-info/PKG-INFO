@@ -8,7 +8,7 @@ License-File: LICENSE
 Requires-Dist: fastapi>=0.136.1
 Requires-Dist: firebase-admin>=7.4.0
 Requires-Dist: httpx>=0.28.1
-Requires-Dist: neon-rings
+Requires-Dist: neon-rings>=0.1.1
 Requires-Dist: platformdirs>=4.2.0
 Requires-Dist: pure-mls>=3.0.5.1
 Requires-Dist: pydantic>=2.13.3

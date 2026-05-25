@@ -184,13 +184,13 @@ def test_firebase_cleanup(mock_cred, mock_admin, mock_db):
 	mock_inbox_ref = MagicMock()
 	mock_inbox_ref.get.return_value = {
 		"old_msg": {"timestamp": 10.0, "sender_id": "other"},
-		"new_msg": {"timestamp": 9999999999.0, "sender_id": "other"}
+		"new_msg": {"timestamp": 9999999999.0, "sender_id": "other"},
 	}
-	
+
 	mock_broadcast_ref = MagicMock()
 	mock_broadcast_ref.get.return_value = {
 		"old_broadcast": {"timestamp": 10.0, "sender_id": "test_agent"},
-		"old_broadcast_other": {"timestamp": 10.0, "sender_id": "other"}
+		"old_broadcast_other": {"timestamp": 10.0, "sender_id": "other"},
 	}
 
 	def ref_side_effect(path, app):
@@ -201,8 +201,10 @@ def test_firebase_cleanup(mock_cred, mock_admin, mock_db):
 	mock_db.reference.side_effect = ref_side_effect
 
 	with patch("neon_link.db.get_connection"):
+
 		def stop_loop(*args):
 			hub.running = False
+
 		with patch("time.sleep", side_effect=stop_loop):
 			hub._cleanup_loop()
 
