@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: neon-link
-Version: 0.3.5
+Version: 0.4.0
 Summary: Add your description here
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
@@ -8,6 +8,7 @@ License-File: LICENSE
 Requires-Dist: fastapi>=0.136.1
 Requires-Dist: firebase-admin>=7.4.0
 Requires-Dist: httpx>=0.28.1
+Requires-Dist: neon-rings>=0.1.1
 Requires-Dist: platformdirs>=4.2.0
 Requires-Dist: pure-mls>=3.0.5.1
 Requires-Dist: pydantic>=2.13.3
@@ -105,3 +106,4 @@ t_hub = TelegramHub(identity_manager, bot_token="TOKEN", allowed_user_id="ID")
 ```
 
 Para más detalles, consulta nuestra [Guía de Uso](docs/GUIDES/USAGE.md) y los [Ejemplos](docs/EXAMPLES/CURL_EXAMPLES.md).
+ 

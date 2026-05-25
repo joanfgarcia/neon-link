@@ -19,6 +19,7 @@ src/neon_link/models/base.py
 src/neon_link/models/network.py
 src/neon_link/plugins/base.py
 src/neon_link/plugins/firebase.py
+src/neon_link/plugins/rings.py
 src/neon_link/plugins/telegram.py
 tests/test_api.py
 tests/test_cli.py
@@ -30,6 +31,7 @@ tests/test_firebase.py
 tests/test_inbox.py
 tests/test_manager.py
 tests/test_middleware.py
+tests/test_rings.py
 tests/test_sound_of_silence.py
 tests/test_telegram.py
 tests/test_webhook.py

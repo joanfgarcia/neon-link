@@ -11,6 +11,6 @@ class NetworkEvent(BaseModel):
 	- payload: The raw bytes to transmit.
 	"""
 
-	type: Literal["application", "welcome", "update"]
+	type: Literal["application", "welcome", "update", "broadcast"]
 	recipient_id: str
 	payload: bytes
