@@ -97,6 +97,19 @@ class PluginManager:
 						if success:
 							cursor.execute("UPDATE outbox SET status = 'SENT' WHERE id = ?", (row["id"],))
 							logger.info(f"[Manager] Processed Egress for msg {row['id']} via {channel}")
+						else:
+							retries = row.get("retries", 0)
+							retries += 1
+							if retries >= 3:
+								cursor.execute("UPDATE outbox SET status = 'FAILED' WHERE id = ?", (row["id"],))
+								cursor.execute(
+									"INSERT INTO dead_letters (original_table, original_id, channel, channel_user_id, payload, error_reason) VALUES (?, ?, ?, ?, ?, ?)",
+									("outbox", row["id"], channel, session_id, row["payload"], f"Failed after {retries} retries"),
+								)
+								logger.error(f"[Manager] Egress failed {retries} times for msg {row['id']}. Moved to dead_letters.")
+							else:
+								cursor.execute("UPDATE outbox SET retries = ? WHERE id = ?", (retries, row["id"]))
+								logger.warning(f"[Manager] Egress failed for msg {row['id']}, retry count: {retries}")
 					else:
 						logger.warning(f"[Manager] Unknown channel {channel} for outbox msg {row['id']}")
 

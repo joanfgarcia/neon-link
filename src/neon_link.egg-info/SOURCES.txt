@@ -1,4 +1,5 @@
 LICENSE
+LICENSE.creative
 README.md
 pyproject.toml
 src/neon_link/cli.py

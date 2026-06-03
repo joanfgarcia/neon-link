@@ -76,3 +76,16 @@ async def test_start_stop(mock_identity_manager):
 		mock_thread.assert_called()
 		await hub.stop()
 		mock_thread.return_value.join.assert_called()
+
+
+def test_split_message(mock_identity_manager):
+	hub = TelegramHub(mock_identity_manager, bot_token="TEST_TOKEN", allowed_user_id="123")
+	chunks = hub._split_message("hello")
+	assert chunks == ["hello"]
+
+	long_msg = "A" * 4500
+	chunks = hub._split_message(long_msg)
+	assert len(chunks) == 2
+	assert chunks[0].endswith("...\n1/2")
+	assert chunks[1].startswith("...")
+	assert chunks[1].endswith("\n2/2")

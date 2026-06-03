@@ -1,10 +1,11 @@
 Metadata-Version: 2.4
 Name: neon-link
-Version: 0.4.0
+Version: 0.5.0
 Summary: Add your description here
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
 License-File: LICENSE
+License-File: LICENSE.creative
 Requires-Dist: fastapi>=0.136.1
 Requires-Dist: firebase-admin>=7.4.0
 Requires-Dist: httpx>=0.28.1

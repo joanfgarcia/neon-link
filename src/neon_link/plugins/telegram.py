@@ -40,25 +40,60 @@ class TelegramHub(NetworkPlugin):
 
 		return not (row and row[0] is not None and row[0] > 60)
 
+	def _split_message(self, text: str, max_chars: int = 4000) -> list[str]:
+		if len(text) <= max_chars:
+			return [text]
+
+		safe_chunk_size = 3900
+		raw_chunks = [text[i : i + safe_chunk_size] for i in range(0, len(text), safe_chunk_size)]
+		num_chunks = len(raw_chunks)
+
+		formatted_chunks = []
+		for idx, chunk in enumerate(raw_chunks):
+			parts = []
+			if idx > 0:
+				parts.append("...")
+
+			parts.append(chunk)
+
+			if idx < num_chunks - 1:
+				parts.append("...")
+
+			parts.append(f"\n{idx + 1}/{num_chunks}")
+			formatted_chunks.append("".join(parts))
+
+		return formatted_chunks
+
 	def send_message(self, chat_id, text):
-		url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-		try:
-			requests.post(url, json={"chat_id": chat_id, "text": text})
-		except Exception as e:
-			logger.error(f"Failed to send message to Telegram: {e}")
+		if not text:
+			return
+		chunks = self._split_message(text)
+		for chunk in chunks:
+			url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+			try:
+				requests.post(url, json={"chat_id": chat_id, "text": chunk})
+			except Exception as e:
+				logger.error(f"Failed to send message to Telegram: {e}")
 
 	async def send_event(self, event: NetworkEvent) -> bool:
 		text = event.payload.decode("utf-8")
-		url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-		try:
-			resp = requests.post(url, json={"chat_id": event.recipient_id, "text": text})
-			if resp.status_code == 200:
-				return True
-			logger.error(f"Telegram API error: {resp.text}")
-			return False
-		except Exception as e:
-			logger.error(f"Failed to send message to Telegram: {e}")
-			return False
+		if not text:
+			return True
+		chunks = self._split_message(text)
+		all_success = True
+		for chunk in chunks:
+			url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+			try:
+				resp = requests.post(url, json={"chat_id": event.recipient_id, "text": chunk})
+				if resp.status_code != 200:
+					logger.error(f"Telegram API error: {resp.text}")
+					all_success = False
+				else:
+					await asyncio.sleep(0.2)
+			except Exception as e:
+				logger.error(f"Failed to send message to Telegram: {e}")
+				all_success = False
+		return all_success
 
 	async def fetch_key_package(self, agent_id: str) -> bytes | None:
 		return None

@@ -105,6 +105,7 @@ def init_db():
 			cascade_id TEXT,
 			payload TEXT NOT NULL,          -- JSON serialized response
 			status TEXT DEFAULT 'PENDING',  -- 'PENDING', 'SENT'
+			retries INTEGER DEFAULT 0,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	""")
@@ -116,6 +117,8 @@ def init_db():
 		cursor.execute("ALTER TABLE outbox ADD COLUMN message_id TEXT UNIQUE")
 	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE telegram_sessions ADD COLUMN cascade_type TEXT DEFAULT 'interactive'")
+	with contextlib.suppress(sqlite3.OperationalError):
+		cursor.execute("ALTER TABLE outbox ADD COLUMN retries INTEGER DEFAULT 0")
 
 	# DEAD LETTERS: Messages that failed to process 3 times
 	cursor.execute("""

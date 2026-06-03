@@ -88,6 +88,13 @@ def start_daemon():
 		load_dotenv(env_file)
 	load_dotenv()  # Fallback to local .env if present
 
+	try:
+		from neon_link.db import init_db
+
+		init_db()
+	except Exception as e:
+		logger.error(f"Failed to auto-run database migrations on startup: {e}")
+
 	agent_id = os.environ.get("NEON_LINK_AGENT_ID")
 	if not agent_id:
 		raise ValueError(f"NEON_LINK_AGENT_ID no configurado. Ejecuta `neon-link init` o edita {env_file}")
