@@ -2,7 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.5.0] - Unreleased
+## [0.5.1] - Unreleased
+
+### Added
+- **XDG Seed Storage Compliance**: Configured `IdentityManager` to store autonomous cryptographic seeds under the standard XDG data directory (`~/.local/share/neon-link/keys/` by default or overridden via `NEON_LINK_VAULT_DIR` env var).
+- **Robust Seed Fallback**: Improved initialization to automatically generate a fallback autonomous seed in the vault directory if the specified `seed_paths` are missing or cannot be loaded, preventing startup crash loop.
+
+## [0.5.0] - 2026-06-17
 
 ### Added
 - **P2P Transport (neon-rings integration)**: Integrated `neon-rings` into `neon-link` as a P2P `NetworkPlugin` (`rings.py`), allowing P2P MLS-encrypted transport.

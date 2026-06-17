@@ -2,6 +2,7 @@ import logging
 import os
 import stat
 
+import platformdirs
 from pure_mls.keys import KemKey, SignatureKey
 
 logger = logging.getLogger(__name__)
@@ -13,9 +14,22 @@ class IdentityManager:
 	Carga múltiples identidades (seeds) o genera una autónoma si no hay configuración.
 	"""
 
-	def __init__(self, seed_paths: list[str] | None = None, fallback_dir: str = "storage"):
+	def __init__(self, seed_paths: list[str] | None = None, fallback_dir: str | None = None):
 		self.identities: dict[str, tuple[KemKey, SignatureKey]] = {}
-		self.fallback_dir = fallback_dir
+
+		if fallback_dir is None:
+			env_dir = os.environ.get("NEON_LINK_VAULT_DIR")
+			if env_dir:
+				self.fallback_dir = env_dir
+			else:
+				self.fallback_dir = os.path.join(platformdirs.user_data_dir("neon-link"), "keys")
+		else:
+			self.fallback_dir = fallback_dir
+
+		if not seed_paths:
+			env_seeds = os.environ.get("NEON_LINK_SEED_PATHS")
+			if env_seeds:
+				seed_paths = [p.strip() for p in env_seeds.split(",") if p.strip()]
 
 		if not seed_paths:
 			logger.info("No identity paths provided. Using autonomous fallback.")
@@ -23,6 +37,10 @@ class IdentityManager:
 		else:
 			for path in seed_paths:
 				self.load_identity(path)
+
+			if not self.identities:
+				logger.warning("No identity seeds were successfully loaded from specified paths. Using autonomous fallback.")
+				self._generate_fallback_identity()
 
 	def _ensure_secure_file(self, path: str):
 		if not os.path.exists(path):

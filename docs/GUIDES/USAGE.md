@@ -11,7 +11,8 @@ Neon-Link expone un `LocalInbox` rápido donde los mensajes desencriptados se en
 ## Multi-Tenant Identities
 
 **[EN]**
-Place your `.seed` files inside your persistent vault. The `IdentityManager` will load all identities and initialize polling for each one concurrently.
+Place your `.seed` files inside your persistent vault directory. By default, the vault is located in the standard XDG directory `~/.local/share/neon-link/keys/` (on Linux), or you can override it using the `NEON_LINK_VAULT_DIR` environment variable. The `IdentityManager` will load all identities and initialize polling for each one concurrently.
 
 **[ES]**
-Coloca tus archivos `.seed` dentro de tu vault persistente. El `IdentityManager` cargará todas las identidades e inicializará el polling para cada una de forma concurrente.
+Coloca tus archivos `.seed` dentro de tu directorio de vault persistente. Por defecto, el vault se encuentra en la ruta estándar XDG `~/.local/share/neon-link/keys/` (en Linux), o puedes cambiarlo usando la variable de entorno `NEON_LINK_VAULT_DIR`. El `IdentityManager` cargará todas las identidades e inicializará el polling para cada una de forma concurrente.
+
