@@ -63,4 +63,3 @@ def test_identity_manager_platformdirs_fallback(tmp_path, monkeypatch):
 	expected_dir = os.path.join(str(tmp_path), "keys")
 	assert mgr.fallback_dir == expected_dir
 	assert os.path.exists(os.path.join(expected_dir, "neon_link.seed"))
-
