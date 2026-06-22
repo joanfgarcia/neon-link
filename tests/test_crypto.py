@@ -40,5 +40,26 @@ def test_identity_manager_missing_seed(tmp_path, caplog):
 
 	caplog.set_level(logging.ERROR)
 
-	IdentityManager(seed_paths=["/non/existent/path.seed"], fallback_dir=str(tmp_path))
+	mgr = IdentityManager(seed_paths=["/non/existent/path.seed"], fallback_dir=str(tmp_path))
 	assert "not found" in caplog.text
+	# El fallback debe haber creado la clave autónoma en tmp_path
+	assert os.path.exists(os.path.join(tmp_path, "neon_link.seed"))
+	assert "neon_link" in mgr.get_identities()
+
+
+def test_identity_manager_env_vault_dir(tmp_path, monkeypatch):
+	monkeypatch.setenv("NEON_LINK_VAULT_DIR", str(tmp_path))
+	mgr = IdentityManager()
+	assert mgr.fallback_dir == str(tmp_path)
+	assert os.path.exists(os.path.join(tmp_path, "neon_link.seed"))
+
+
+def test_identity_manager_platformdirs_fallback(tmp_path, monkeypatch):
+	# Limpiamos la variable de entorno para forzar el fallback de platformdirs
+	monkeypatch.delenv("NEON_LINK_VAULT_DIR", raising=False)
+	monkeypatch.setattr("platformdirs.user_data_dir", lambda name: str(tmp_path))
+
+	mgr = IdentityManager()
+	expected_dir = os.path.join(str(tmp_path), "keys")
+	assert mgr.fallback_dir == expected_dir
+	assert os.path.exists(os.path.join(expected_dir, "neon_link.seed"))

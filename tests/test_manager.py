@@ -96,3 +96,38 @@ def test_network_plugin_base():
 	asyncio.run(plugin.stop())
 	asyncio.run(plugin.send_event(MagicMock()))
 	asyncio.run(plugin.fetch_key_package("a"))
+
+
+@patch("neon_link.core.manager.get_connection")
+def test_poll_outbox_loop_failures(mock_get_conn, manager_setup):
+	mock_conn = MagicMock()
+	mock_cursor = MagicMock()
+	mock_conn.cursor.return_value = mock_cursor
+	mock_get_conn.return_value = mock_conn
+
+	import json
+
+	row = {"id": 1, "channel": "telegram", "channel_user_id": "user123", "payload": json.dumps({"text": "Hello"}), "retries": 2}
+	mock_cursor.fetchall.return_value = [row]
+
+	plugin = MagicMock()
+	plugin.name = "telegram"
+	manager_setup.register(plugin)
+
+	from unittest.mock import AsyncMock
+
+	manager_setup.pipeline.process_egress = AsyncMock(return_value=False)
+	manager_setup._resolve_session = MagicMock(return_value="user123")
+	manager_setup.running = True
+
+	def side_effect(*args):
+		manager_setup.running = False
+
+	with patch("time.sleep", side_effect=side_effect):
+		manager_setup._poll_outbox_loop()
+
+	mock_cursor.execute.assert_any_call("UPDATE outbox SET status = 'FAILED' WHERE id = ?", (1,))
+	mock_cursor.execute.assert_any_call(
+		"INSERT INTO dead_letters (original_table, original_id, channel, channel_user_id, payload, error_reason) VALUES (?, ?, ?, ?, ?, ?)",
+		("outbox", 1, "telegram", "user123", row["payload"], "Failed after 3 retries"),
+	)

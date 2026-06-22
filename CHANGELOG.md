@@ -2,12 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.5.0] - Unreleased
+## [0.5.1] - Unreleased
+
+### Added
+- **XDG Seed Storage Compliance**: Configured `IdentityManager` to store autonomous cryptographic seeds under the standard XDG data directory (`~/.local/share/neon-link/keys/` by default or overridden via `NEON_LINK_VAULT_DIR` env var).
+- **Robust Seed Fallback**: Improved initialization to automatically generate a fallback autonomous seed in the vault directory if the specified `seed_paths` are missing or cannot be loaded, preventing startup crash loop.
+
+## [0.5.0] - 2026-06-17
 
 ### Added
 - **P2P Transport (neon-rings integration)**: Integrated `neon-rings` into `neon-link` as a P2P `NetworkPlugin` (`rings.py`), allowing P2P MLS-encrypted transport.
 - **Rings DHT KeyPackage Sharing**: Enabled P2P MLS `KeyPackage` publishing to and fetching from the Rings DHT, securing P2P sessions setup.
 - **Rings Configuration**: Added `ENABLE_RINGS` and `RINGS_ENDPOINT_URL` configuration parameters to the environment configuration.
+
+### Fixed
+- **Telegram Character Limit & Outbox Deadlock**: Implemented automatic chunking of Telegram messages exceeding 4000 characters with ellipsis continuation (`...`) and series fraction tracking (`\n#/#`). Introduced an outbox retry limit (max 3) and routing of permanently failing messages to `dead_letters` to prevent queue deadlocks. Added auto-migration trigger on daemon startup.
 
 ### Changed
 - **MLS E2EE support**: Updated `CryptoPipeline` egress and ingress paths to enforce MLS encryption for the `rings` plugin just like the `firebase` channel.
