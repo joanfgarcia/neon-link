@@ -118,6 +118,10 @@ def init_db():
 	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE telegram_sessions ADD COLUMN cascade_type TEXT DEFAULT 'interactive'")
 	with contextlib.suppress(sqlite3.OperationalError):
+		cursor.execute("ALTER TABLE telegram_sessions ADD COLUMN model TEXT")  # D1: modelo respondedor de sesión (RFC §2A)
+	with contextlib.suppress(sqlite3.OperationalError):
+		cursor.execute("ALTER TABLE telegram_sessions ADD COLUMN backend TEXT")  # D1/D8: backend del catálogo, no por prefijo
+	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE outbox ADD COLUMN retries INTEGER DEFAULT 0")
 
 	# DEAD LETTERS: Messages that failed to process 3 times
