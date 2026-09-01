@@ -147,11 +147,14 @@ def init_db():
 	""")
 
 	# SESSION BINDING: Maps Telegram User ID to IDE Cascade ID
+	# model/backend = modelo respondedor de sesión (RFC §2A/D1/D8), desde el catálogo.
 	cursor.execute("""
 		CREATE TABLE IF NOT EXISTS telegram_sessions (
 			channel_user_id TEXT PRIMARY KEY,
 			cascade_id TEXT,
 			cascade_type TEXT DEFAULT 'interactive',
+			model TEXT,
+			backend TEXT,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	""")
