@@ -123,6 +123,12 @@ class TelegramHub(NetworkPlugin):
 				"• `/list` - Lista las sesiones de Córtex activas.\n"
 				"• `/switch <número>` - Ancla el bot a la sesión deseada.\n"
 				"• `/new` - Inicia una nueva sesión Headless limpia.\n"
+				"• `/models` - Lista los modelos del catálogo curado.\n"
+				"• `/model [id]` - Muestra/cambia el modelo respondedor de la sesión.\n"
+				"• `/defaults` - Vuelve a la cascade configurada (.env).\n"
+				"• `/mission <prompt>` - Fuerza el heavy path (cola).\n"
+				"• `/queue` - Estado de la cola de jobs.\n"
+				"• `/deferred` - Mensajes DEFERRED (quota agotada).\n"
 				"• `/bg <mensaje>` - Envía el mensaje en background (modo Minion).\n"
 				"• `/help` - Muestra esta ayuda."
 			)
@@ -149,6 +155,52 @@ class TelegramHub(NetworkPlugin):
 			else:
 				self.send_message(chat_id, "❌ Uso: /switch <número>")
 				return
+		elif raw_text.startswith("/models"):
+			import time
+
+			backend = None
+			if " --backend " in raw_text or raw_text.startswith("/models --backend"):
+				parts = raw_text.split()
+				for i, p in enumerate(parts):
+					if p == "--backend" and i + 1 < len(parts):
+						backend = parts[i + 1]
+						break
+			payload = json.dumps({"command": "LIST_MODELS", "backend": backend, "mode": "conversational", "_t": time.time()})
+			self.send_message(chat_id, "🧠 Listando modelos del catálogo curado...")
+		elif raw_text.startswith("/model"):
+			import time
+
+			rest = raw_text[len("/model") :].strip()
+			if rest:
+				payload = json.dumps({"command": "SET_MODEL", "model": rest, "mode": "conversational", "_t": time.time()})
+				self.send_message(chat_id, f"🔧 Estableciendo modelo de sesión a `{rest}`...")
+			else:
+				payload = json.dumps({"command": "SHOW_MODEL", "mode": "conversational", "_t": time.time()})
+				self.send_message(chat_id, "🔍 Consultando modelo actual de la sesión...")
+		elif raw_text.startswith("/defaults"):
+			import time
+
+			payload = json.dumps({"command": "RESET_MODEL", "mode": "conversational", "_t": time.time()})
+			self.send_message(chat_id, "↩️ Restableciendo modelo a la cascade configurada (.env)...")
+		elif raw_text.startswith("/deferred"):
+			import time
+
+			payload = json.dumps({"command": "LIST_DEFERRED", "mode": "conversational", "_t": time.time()})
+			self.send_message(chat_id, "📋 Consultando mensajes DEFERRED...")
+		elif raw_text.startswith("/queue"):
+			import time
+
+			payload = json.dumps({"command": "SHOW_QUEUE", "mode": "conversational", "_t": time.time()})
+			self.send_message(chat_id, "🗂️ Consultando la cola de jobs...")
+		elif raw_text.startswith("/mission"):
+			import time
+
+			prompt = raw_text[len("/mission") :].strip()
+			if not prompt:
+				self.send_message(chat_id, "❌ Uso: /mission <prompt>")
+				return
+			payload = json.dumps({"command": "HEAVY_PATH", "text": prompt, "mode": "conversational", "_t": time.time()})
+			self.send_message(chat_id, "🚀 Encolando como misión (heavy path)...")
 		else:
 			# Routing Policy Engine
 			bot_username = os.environ.get("TELEGRAM_BOT_USERNAME", "")
@@ -178,9 +230,11 @@ class TelegramHub(NetworkPlugin):
 
 			payload = json.dumps({"text": formatted_text, "mode": mode, "_t": time.time()})
 
-		# Check health
+		# Check health. This watches the red-pill WORKER heartbeat (system_health
+		# table), which processes the inbox under ANY execution backend — it is
+		# intentionally backend-agnostic (no IDE required for opencode/claude).
 		if not self.check_red_pill_health():
-			self.send_message(chat_id, "⚠️ Córtex Offline. El IDE o Red-Pill no responde. El mensaje será encolado.")
+			self.send_message(chat_id, "⚠️ Córtex Offline. Red-Pill no responde. El mensaje será encolado.")
 
 		logger.info(f"Received from Telegram: {raw_text}")
 
@@ -229,6 +283,12 @@ class TelegramHub(NetworkPlugin):
 						{"command": "list", "description": "Lista las sesiones activas"},
 						{"command": "switch", "description": "Ancla el bot a una sesión"},
 						{"command": "new", "description": "Inicia una sesión Headless"},
+						{"command": "models", "description": "Lista el catálogo de modelos"},
+						{"command": "model", "description": "Muestra/cambia el modelo de sesión"},
+						{"command": "defaults", "description": "Vuelve a la cascade de .env"},
+						{"command": "mission", "description": "Fuerza el heavy path (cola)"},
+						{"command": "queue", "description": "Estado de la cola de jobs"},
+						{"command": "deferred", "description": "Mensajes DEFERRED"},
 						{"command": "bg", "description": "Envía un mensaje en background"},
 					]
 				}
