@@ -47,8 +47,6 @@ def test_telegram_sessions_migrates_existing_db(tmp_path):
 	"""RFC §2A: una DB antigua sin model/backend se migra vía ALTER."""
 	import sqlite3
 
-	from neon_link.db import get_db_path
-
 	db_path = tmp_path / "legacy_events.db"
 	conn = sqlite3.connect(str(db_path))
 	conn.execute(
