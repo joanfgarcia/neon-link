@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.2] - Unreleased
+
+### Fixed
+- **Egress no longer blocks on a single bad message**: the outbox loop used `row.get("retries", 0)` on a `sqlite3.Row` (no `.get`), raising `AttributeError` that escaped the per-loop handler and aborted the ENTIRE batch — every following message stalled forever. Fixed to `row["retries"]`, and each message is now processed in isolation (`_process_outbox_row`): a corrupt payload, unknown channel or unprocessable row is dead-lettered (`_fail_outbox_msg`) instead of halting the queue.
+
 ## [0.5.1] - Unreleased
 
 ### Added
