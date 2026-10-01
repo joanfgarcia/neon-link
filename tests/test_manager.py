@@ -131,3 +131,89 @@ def test_poll_outbox_loop_failures(mock_get_conn, manager_setup):
 		"INSERT INTO dead_letters (original_table, original_id, channel, channel_user_id, payload, error_reason) VALUES (?, ?, ?, ?, ?, ?)",
 		("outbox", 1, "telegram", "user123", row["payload"], "Failed after 3 retries"),
 	)
+
+
+# ── Regression: real sqlite3.Row + per-message containment ───────────────────
+# El outbox se lee con row_factory=sqlite3.Row (no dicts). El bug `row.get(...)`
+# reventaba el bucle con un AttributeError y BLOQUEABA todos los mensajes
+# siguientes. Estos tests usan Rows reales y verifican el aislamiento.
+
+
+def _real_conn(tmp_path):
+	import sqlite3
+
+	conn = sqlite3.connect(str(tmp_path / "events.db"))
+	conn.row_factory = sqlite3.Row
+	conn.executescript(
+		"""
+		CREATE TABLE outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, message_id TEXT,
+			channel TEXT, channel_user_id TEXT, payload TEXT,
+			status TEXT DEFAULT 'PENDING', retries INTEGER DEFAULT 0, created_at TEXT);
+		CREATE TABLE dead_letters (id INTEGER PRIMARY KEY AUTOINCREMENT, original_table TEXT,
+			original_id INTEGER, channel TEXT, channel_user_id TEXT, payload TEXT, error_reason TEXT);
+		"""
+	)
+	conn.commit()
+	return conn
+
+
+@patch("neon_link.core.manager.get_connection")
+def test_poll_uses_real_sqlite_row(mock_get_conn, manager_setup, tmp_path):
+	"""Un Row real (retries entero) NO debe romper con AttributeError."""
+	conn = _real_conn(tmp_path)
+	conn.execute(
+		"INSERT INTO outbox (channel, channel_user_id, payload, created_at) VALUES ('telegram','user123',?, '2026-01-01')", ('{"text":"Hello"}',)
+	)
+	conn.commit()
+	mock_get_conn.return_value = conn
+
+	plugin = MagicMock()
+	plugin.name = "telegram"
+	manager_setup.register(plugin)
+	manager_setup.pipeline.process_egress = AsyncMock(return_value=False)
+	manager_setup._resolve_session = MagicMock(return_value="user123")
+	manager_setup.running = True
+
+	with patch("time.sleep", side_effect=lambda *a: setattr(manager_setup, "running", False)):
+		manager_setup._poll_outbox_loop()
+
+	import sqlite3 as _s
+
+	check = _s.connect(str(tmp_path / "events.db"))
+	check.row_factory = _s.Row
+	# retries debe haber subido a 1 (no crash, no dead-letter todavía)
+	assert check.execute("SELECT retries FROM outbox WHERE id=1").fetchone()[0] == 1
+	check.close()
+
+
+@patch("neon_link.core.manager.get_connection")
+def test_bad_message_does_not_block_following(mock_get_conn, manager_setup, tmp_path):
+	"""Un mensaje con payload corrupto se aísla (FAILED + dead_letter) y NO
+	impide que el siguiente se entregue."""
+	conn = _real_conn(tmp_path)
+	conn.execute("INSERT INTO outbox (channel, channel_user_id, payload, created_at) VALUES ('telegram','bad',?, '2026-01-01')", ("{NOT JSON",))
+	conn.execute(
+		"INSERT INTO outbox (channel, channel_user_id, payload, created_at) VALUES ('telegram','good',?, '2026-01-02')", ('{"text":"Hola"}',)
+	)
+	conn.commit()
+	mock_get_conn.return_value = conn
+
+	plugin = MagicMock()
+	plugin.name = "telegram"
+	manager_setup.register(plugin)
+	manager_setup.pipeline.process_egress = AsyncMock(return_value=True)
+	manager_setup._resolve_session = MagicMock(return_value="user123")
+	manager_setup.running = True
+
+	with patch("time.sleep", side_effect=lambda *a: setattr(manager_setup, "running", False)):
+		manager_setup._poll_outbox_loop()
+
+	import sqlite3 as _s
+
+	check = _s.connect(str(tmp_path / "events.db"))
+	check.row_factory = _s.Row
+	statuses = {r["id"]: r["status"] for r in check.execute("SELECT id, status FROM outbox")}
+	assert statuses[1] == "FAILED", "el mensaje corrupto debe dead-letterizarse"
+	assert statuses[2] == "SENT", "el mensaje bueno debe entregarse pese al corrupto anterior"
+	assert check.execute("SELECT COUNT(*) FROM dead_letters").fetchone()[0] == 1
+	check.close()

@@ -81,37 +81,14 @@ class PluginManager:
 				rows = cursor.fetchall()
 
 				for row in rows:
-					channel = row["channel"]
-					if channel in self.plugins:
-						plugin = self.plugins[channel]
-						payload_json = json.loads(row["payload"])
-						text = payload_json.get("text", "No text provided")
-						session_id = row["channel_user_id"]
-
-						# Translate UUID session back to real Telegram chat ID
-						recipient_id = self._resolve_session(session_id)
-
-						# Pass through CryptoPipeline
-						success = loop.run_until_complete(self.pipeline.process_egress(plugin, recipient_id, text))
-
-						if success:
-							cursor.execute("UPDATE outbox SET status = 'SENT' WHERE id = ?", (row["id"],))
-							logger.info(f"[Manager] Processed Egress for msg {row['id']} via {channel}")
-						else:
-							retries = row.get("retries", 0)
-							retries += 1
-							if retries >= 3:
-								cursor.execute("UPDATE outbox SET status = 'FAILED' WHERE id = ?", (row["id"],))
-								cursor.execute(
-									"INSERT INTO dead_letters (original_table, original_id, channel, channel_user_id, payload, error_reason) VALUES (?, ?, ?, ?, ?, ?)",
-									("outbox", row["id"], channel, session_id, row["payload"], f"Failed after {retries} retries"),
-								)
-								logger.error(f"[Manager] Egress failed {retries} times for msg {row['id']}. Moved to dead_letters.")
-							else:
-								cursor.execute("UPDATE outbox SET retries = ? WHERE id = ?", (retries, row["id"]))
-								logger.warning(f"[Manager] Egress failed for msg {row['id']}, retry count: {retries}")
-					else:
-						logger.warning(f"[Manager] Unknown channel {channel} for outbox msg {row['id']}")
+					# Per-message containment: one bad message must NEVER abort the
+					# whole batch (it used to: an exception here escaped to the outer
+					# handler and blocked every subsequent message forever).
+					try:
+						self._process_outbox_row(loop, cursor, row)
+					except Exception as e:
+						logger.exception(f"[Manager] Egress failed for msg {row['id']} ({e}); skipping")
+						self._fail_outbox_msg(cursor, row, row["channel"], f"processing error: {e}")
 
 				conn.commit()
 				conn.close()
@@ -119,6 +96,53 @@ class PluginManager:
 				logger.error(f"[Manager] Outbox polling error: {e}")
 
 			time.sleep(1.0)
+
+	def _process_outbox_row(self, loop, cursor, row) -> None:
+		"""Process a single outbox row. Raises on unexpected failure (the caller
+		contains it per-message)."""
+		channel = row["channel"]
+		if channel not in self.plugins:
+			logger.warning(f"[Manager] Unknown channel {channel} for outbox msg {row['id']}; dead-lettering")
+			self._fail_outbox_msg(cursor, row, channel, f"unknown channel: {channel}")
+			return
+
+		plugin = self.plugins[channel]
+		payload_json = json.loads(row["payload"])
+		text = payload_json.get("text", "No text provided")
+		session_id = row["channel_user_id"]
+
+		# Translate UUID session back to real channel_user_id. If it cannot be
+		# resolved AND looks like an internal session id (not a real chat id),
+		# the message is undeliverable — dead-letter it instead of retrying a
+		# non-existent chat forever.
+		recipient_id = self._resolve_session(session_id)
+
+		# Pass through CryptoPipeline
+		success = loop.run_until_complete(self.pipeline.process_egress(plugin, recipient_id, text))
+
+		if success:
+			cursor.execute("UPDATE outbox SET status = 'SENT' WHERE id = ?", (row["id"],))
+			logger.info(f"[Manager] Processed Egress for msg {row['id']} via {channel}")
+			return
+
+		retries = row["retries"] or 0
+		retries += 1
+		if retries >= 3:
+			self._fail_outbox_msg(cursor, row, channel, f"Failed after {retries} retries")
+			logger.error(f"[Manager] Egress failed {retries} times for msg {row['id']}. Moved to dead_letters.")
+		else:
+			cursor.execute("UPDATE outbox SET retries = ? WHERE id = ?", (retries, row["id"]))
+			logger.warning(f"[Manager] Egress failed for msg {row['id']}, retry count: {retries}")
+
+	def _fail_outbox_msg(self, cursor, row, channel, reason: str) -> None:
+		"""Mark an outbox row FAILED and record it in dead_letters. Used both for
+		exhausted retries and for undeliverable messages (unknown channel, bad
+		payload) so a single bad row can never stall the egress queue."""
+		cursor.execute("UPDATE outbox SET status = 'FAILED' WHERE id = ?", (row["id"],))
+		cursor.execute(
+			"INSERT INTO dead_letters (original_table, original_id, channel, channel_user_id, payload, error_reason) VALUES (?, ?, ?, ?, ?, ?)",
+			("outbox", row["id"], channel, row["channel_user_id"], row["payload"], reason),
+		)
 
 	def get_plugin(self, name: str) -> NetworkPlugin:
 		return self.plugins[name]
