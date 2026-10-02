@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -214,3 +214,29 @@ def test_firebase_cleanup(mock_cred, mock_admin, mock_db):
 	mock_broadcast_ref.child.assert_any_call("old_broadcast")
 	with pytest.raises(AssertionError):
 		mock_broadcast_ref.child.assert_any_call("old_broadcast_other")
+
+
+@patch("neon_link.plugins.firebase.db")
+@patch("neon_link.plugins.firebase.firebase_admin")
+@patch("neon_link.plugins.firebase.credentials")
+def test_ingest_pkg_contains_bad_messages(mock_cred, mock_admin, mock_db):
+	"""Un paquete malformado se marca procesado y no frena al siguiente; un fallo
+	del callback deja el mensaje pendiente para el próximo poll."""
+	import asyncio
+
+	hub = FirebaseHub(MagicMock(), db_url="http://fake", credential_path="fake.json", agent_id="agent")
+	processed = []
+	hub._is_msg_processed = lambda mid: mid in processed
+	hub._mark_msg_processed = processed.append
+	hub._on_event_callback = AsyncMock()
+	loop = asyncio.new_event_loop()
+	try:
+		hub._ingest_pkg(loop, "bad-hex", {"payload": "zz-not-hex"}, "application", None)
+		hub._ingest_pkg(loop, "not-dict", "garbage", "application", None)
+		hub._ingest_pkg(loop, "good", {"payload": "6869", "sender_id": "s"}, "application", None)
+		hub._on_event_callback = AsyncMock(side_effect=RuntimeError("database is locked"))
+		hub._ingest_pkg(loop, "locked", {"payload": "6869"}, "application", None)
+	finally:
+		loop.close()
+	assert processed == ["bad-hex", "not-dict", "good"]
+	assert hub._ingest_failures == {"locked": 1}

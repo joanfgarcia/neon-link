@@ -26,6 +26,11 @@ SEND_TIMEOUT = (5, 30)
 _PERMANENT_STATUS = (400, 403)
 # Messages whose chunks were partially delivered; bounded so a dead one cannot leak.
 _MAX_TRACKED_PROGRESS = 256
+# Ingress: an update that cannot be enqueued (DB locked…) is NOT acknowledged —
+# the offset stays put and Telegram redelivers it — up to this many attempts.
+_MAX_INGRESS_ATTEMPTS = 5
+# getUpdates backoff on HTTP errors / exceptions (seconds, doubling).
+_POLL_BACKOFF_MAX = 60.0
 
 
 class TelegramHub(NetworkPlugin):
@@ -44,14 +49,19 @@ class TelegramHub(NetworkPlugin):
 			logger.warning("TELEGRAM_WHITELIST_ID or TELEGRAM_BOT_TOKEN missing. Telegram Hub might fail if enabled.")
 
 	def check_red_pill_health(self) -> bool:
-		conn = get_connection()
-		cursor = conn.cursor()
-		cursor.execute(
-			"SELECT (julianday('now') - julianday(last_heartbeat)) * 86400 AS seconds_ago FROM system_health WHERE service_name = 'red_pill'"
-		)
-		row = cursor.fetchone()
-		conn.close()
-
+		"""Worker heartbeat fresh (< 60 s). Only drives the "offline" notice, so a DB
+		error reads as healthy instead of aborting the ingest of the message."""
+		try:
+			conn = get_connection()
+			try:
+				row = conn.execute(
+					"SELECT (julianday('now') - julianday(last_heartbeat)) * 86400 AS seconds_ago FROM system_health WHERE service_name = 'red_pill'"
+				).fetchone()
+			finally:
+				conn.close()
+		except Exception as e:
+			logger.warning(f"Health check unavailable: {e}")
+			return True
 		return not (row and row[0] is not None and row[0] > 60)
 
 	def _split_message(self, text: str, max_chars: int = 4000) -> list[str]:
@@ -267,17 +277,17 @@ class TelegramHub(NetworkPlugin):
 
 		logger.info(f"Received from Telegram: {raw_text}")
 
-		# Pass to Pipeline via callback
+		# Pass to Pipeline via callback. A failure propagates: the poller does not
+		# acknowledge the update, so Telegram redelivers it (no silent loss).
 		if self._on_event_callback:
 			event = NetworkEvent(type="application", recipient_id=chat_id, payload=payload.encode("utf-8"))
-			try:
-				asyncio.run(self._on_event_callback(self, chat_id, event))  # type: ignore
-			except Exception as e:
-				logger.error(f"Failed to enqueue via callback: {e}")
+			asyncio.run(self._on_event_callback(self, chat_id, event))  # type: ignore
 
 	def poll_telegram(self):
 		url = f"https://api.telegram.org/bot{self.bot_token}/getUpdates"
 		logger.info("Started Telegram Ingress Polling...")
+		backoff = 1.0
+		attempts: dict[int, int] = {}
 		while self.running:
 			if not self.bot_token:
 				logger.error("TELEGRAM_BOT_TOKEN not set. Exiting Ingress loop.")
@@ -285,15 +295,54 @@ class TelegramHub(NetworkPlugin):
 
 			try:
 				resp = requests.get(url, params={"timeout": 10, "offset": self.offset}, timeout=15)
-				if resp.status_code == 200:
-					data = resp.json()
-					for update in data.get("result", []):
-						self.offset = update["update_id"] + 1
-						if "message" in update:
-							self.handle_message(update["message"])
 			except Exception as e:
 				logger.error(f"Telegram polling error: {e}")
-				time.sleep(5)
+				time.sleep(backoff)
+				backoff = min(backoff * 2, _POLL_BACKOFF_MAX)
+				continue
+
+			if resp.status_code != 200:
+				delay = backoff
+				if resp.status_code == 409:
+					logger.error("getUpdates 409 Conflict: another poller is using this bot token (a second neon-link running?)")
+				elif resp.status_code == 429:
+					delay = max(delay, float(_retry_after(resp)))
+					logger.warning(f"getUpdates rate-limited; retrying in {delay:.0f}s")
+				else:
+					logger.error(f"getUpdates HTTP {resp.status_code}: {resp.text[:200]}")
+				time.sleep(delay)
+				backoff = min(backoff * 2, _POLL_BACKOFF_MAX)
+				continue
+			backoff = 1.0
+
+			try:
+				updates = resp.json().get("result", [])
+			except Exception as e:
+				logger.error(f"getUpdates returned an unreadable body: {e}")
+				continue
+			for update in updates:
+				if not self._ingest_update(update, attempts):
+					break
+
+	def _ingest_update(self, update: dict, attempts: dict[int, int]) -> bool:
+		"""Handle one update and acknowledge it (advance the offset). On failure the
+		offset stays put so Telegram redelivers it; after _MAX_INGRESS_ATTEMPTS it is
+		dropped with an error. Returns False to stop the current batch."""
+		update_id = update["update_id"]
+		try:
+			if "message" in update:
+				self.handle_message(update["message"])
+		except Exception as e:
+			n = attempts.get(update_id, 0) + 1
+			if n < _MAX_INGRESS_ATTEMPTS:
+				attempts[update_id] = n
+				logger.error(f"Failed to ingest Telegram update {update_id} ({e}); retry {n}/{_MAX_INGRESS_ATTEMPTS - 1}")
+				time.sleep(min(2**n, 30))
+				return False
+			logger.error(f"Dropping Telegram update {update_id} after {n} failed attempts: {e}")
+		attempts.pop(update_id, None)
+		self.offset = update_id + 1
+		return True
 
 	async def start(self):
 		self.running = True
@@ -335,3 +384,12 @@ class TelegramHub(NetworkPlugin):
 		self.running = False
 		if hasattr(self, "t_ingress"):
 			self.t_ingress.join(timeout=2.0)
+
+
+def _retry_after(resp) -> float:
+	"""Seconds Telegram asks to wait on a 429 (`parameters.retry_after`), default 5."""
+	try:
+		return float(resp.json().get("parameters", {}).get("retry_after", 5))
+	except Exception:
+		return 5.0
+
