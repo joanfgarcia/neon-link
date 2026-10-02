@@ -138,12 +138,11 @@ async def test_send_event_retry_resumes_after_delivered_chunks(mock_req, _sleep,
 	assert not hub._chunk_progress
 
 
-
 def test_ingest_failure_keeps_offset_so_telegram_redelivers(mock_identity_manager):
 	"""Si encolar falla (DB bloqueada), el offset NO avanza: Telegram lo reenvía."""
 	hub = TelegramHub(mock_identity_manager, bot_token="T", allowed_user_id="123")
 	hub.handle_message = MagicMock(side_effect=RuntimeError("database is locked"))
-	attempts = {}
+	attempts: dict[int, int] = {}
 	with patch("neon_link.plugins.telegram.time.sleep"):
 		assert hub._ingest_update({"update_id": 10, "message": {}}, attempts) is False
 	assert hub.offset == 0 and attempts == {10: 1}

@@ -14,6 +14,7 @@ from neon_link.plugins.base import NetworkPlugin, PermanentEgressError
 
 logger = logging.getLogger(__name__)
 
+
 # Egress retry policy — por TIEMPO, no por número de intentos: un envío fallido se
 # reintenta con backoff exponencial (BASE, x2, tope MAX) mientras el mensaje tenga
 # menos de MAX_AGE. Un corte de red corto (vuelta de suspensión, wifi) no pierde

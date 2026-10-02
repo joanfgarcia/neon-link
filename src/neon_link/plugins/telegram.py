@@ -392,4 +392,3 @@ def _retry_after(resp) -> float:
 		return float(resp.json().get("parameters", {}).get("retry_after", 5))
 	except Exception:
 		return 5.0
-

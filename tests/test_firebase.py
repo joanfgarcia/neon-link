@@ -225,7 +225,7 @@ def test_ingest_pkg_contains_bad_messages(mock_cred, mock_admin, mock_db):
 	import asyncio
 
 	hub = FirebaseHub(MagicMock(), db_url="http://fake", credential_path="fake.json", agent_id="agent")
-	processed = []
+	processed: list[str] = []
 	hub._is_msg_processed = lambda mid: mid in processed
 	hub._mark_msg_processed = processed.append
 	hub._on_event_callback = AsyncMock()
