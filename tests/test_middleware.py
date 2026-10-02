@@ -232,3 +232,36 @@ async def test_process_ingress_app_error(identity_manager_mock, plugin_mock):
 	group.decrypt_application_message.side_effect = Exception("err")
 	pipeline._get_group_state = MagicMock(return_value=group)
 	await pipeline.process_ingress(plugin_mock, "sender", event)
+
+
+@pytest.mark.asyncio
+async def test_process_egress_lost_commit_does_not_advance_epoch(identity_manager_mock, plugin_mock):
+	"""Si el commit no llega a la red, el epoch nuevo no se persiste (grupo sin desincronizar)."""
+	pipeline = CryptoPipeline(identity_manager_mock, "test_agent")
+	plugin_mock.name = "firebase"
+	plugin_mock.send_event = AsyncMock(return_value=False)
+	group, next_group = MagicMock(), MagicMock()
+	group.update_key.return_value = (next_group, MagicMock())
+	pipeline._get_group_state = MagicMock(return_value=group)
+	pipeline._save_group_state = MagicMock()
+	with patch("neon_link.core.middleware.MLSMessage") as mls:
+		mls.wrap_commit.return_value.to_bytes.return_value = b"commit"
+		assert await pipeline.process_egress(plugin_mock, "user1", "payload") is False
+	plugin_mock.send_event.assert_awaited_once()
+	pipeline._save_group_state.assert_not_called()
+	next_group.encrypt_application_message.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_process_egress_permanent_error_propagates(identity_manager_mock, plugin_mock):
+	from neon_link.plugins.base import PermanentEgressError
+
+	pipeline = CryptoPipeline(identity_manager_mock, "test_agent")
+	plugin_mock.name = "firebase"
+	plugin_mock.send_event = AsyncMock(side_effect=PermanentEgressError("rejected"))
+	group = MagicMock()
+	group.update_key.return_value = (MagicMock(), MagicMock())
+	pipeline._get_group_state = MagicMock(return_value=group)
+	with patch("neon_link.core.middleware.MLSMessage") as mls, pytest.raises(PermanentEgressError):
+		mls.wrap_commit.return_value.to_bytes.return_value = b"commit"
+		await pipeline.process_egress(plugin_mock, "user1", "payload")

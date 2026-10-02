@@ -1,6 +1,6 @@
 [project]
 name = "neon-link"
-version = "0.6.2"
+version = "0.6.3"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -53,3 +53,5 @@ explicit_package_bases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Import the checkout under test, not the venv-installed (editable) package.
+pythonpath = ["src"]

@@ -2,7 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.6.2] - Unreleased
+## [0.6.3] - 2026-10-02
+
+### Fixed
+- **Egress retries are time-based with exponential backoff** (`next_attempt_at`): 0.6.2 made the 3-retry cut reachable for the first time, but with no delay — three 1-second polls and the message went to `dead_letters` for good, so a short network blip (resume from suspend, Wi-Fi reconnect) lost it. Failed sends now back off 5 s → ×2 → 300 s cap and are dead-lettered only once older than `NEON_EGRESS_MAX_AGE_H` (default 24 h) **and** after at least 8 attempts (a message waiting through a >24 h suspend is not dropped on its first failure). Tunable: `NEON_EGRESS_BACKOFF_BASE_S`, `NEON_EGRESS_BACKOFF_MAX_S`; invalid values fall back to the defaults.
+- **Permanent vs transient failures**: plugins raise `PermanentEgressError` for undeliverable messages (corrupt payload, Telegram 400/403) → dead-lettered at once; any other exception is retried (it used to dead-letter on the first network exception). A channel with no plugin in the running process is retried instead of dropped.
+- **No duplicates on a locked DB**: per-message commit (the write lock is no longer held across network sends), and a delivered message whose `SENT` write hits "database is locked" is remembered and only recorded on the next poll — never re-sent.
+- **Telegram egress**: `sendMessage` has a timeout (an unbounded POST could hang the egress thread), and a retry resumes after the chunks of a long message that were already delivered.
+- **Telegram ingress no longer loses messages**: the update offset used to advance before enqueuing and enqueue errors were swallowed, so a locked DB dropped the message silently. An update is now acknowledged only once enqueued (retried up to 5 times otherwise). `getUpdates` errors (401/409/429/5xx) back off 1 → 60 s instead of hammering the API (`retry_after` honoured; 409 explains a second poller).
+- **Firebase ingress**: per-message containment — a malformed package (bad hex, not an object) is skipped instead of aborting the batch and stalling the mailbox forever.
+- **MLS E2E egress**: the new epoch is persisted only after its commit reached the network (a lost commit desynced the group, and each retry burned one epoch); `PermanentEgressError` is no longer swallowed there.
+- **Test isolation**: the suite ran `start_daemon()`/`init_db()` against the operator's real `events.db` and key directory; `tests/conftest.py` now sandboxes HOME/XDG and `NEON_LINK_DB_PATH` and blocks real HTTP.
+
+### Added
+- **`neon-link redrive --all | DEAD_LETTER_ID ...`**: requeues dead-lettered outbox messages with a fresh clock (re-inserting from the dead letter's payload if the outbox row was purged); exits 1 if a requested id does not exist.
+
+### Changed
+- Build artifacts (`*.egg-info`, `__pycache__`), old logs and the pre-XDG `storage/` seed are no longer tracked; pytest imports the checkout's own `src` (`pythonpath`); `start.sh` no longer hardcodes a personal `uv` path; `.env.example` and README document the egress settings and `redrive`.
+
+## [0.6.2] - 2026-10-02
 
 ### Fixed
 - **Egress no longer blocks on a single bad message**: the outbox loop used `row.get("retries", 0)` on a `sqlite3.Row` (no `.get`), raising `AttributeError` that escaped the per-loop handler and aborted the ENTIRE batch — every following message stalled forever. Fixed to `row["retries"]`, and each message is now processed in isolation (`_process_outbox_row`): a corrupt payload, unknown channel or unprocessable row is dead-lettered (`_fail_outbox_msg`) instead of halting the queue.

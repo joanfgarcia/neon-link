@@ -13,6 +13,9 @@ from neon_link.plugins.base import NetworkPlugin
 
 logger = logging.getLogger(__name__)
 
+# A mailbox message whose ingest keeps failing (DB locked…) is dropped after this many polls.
+_MAX_INGEST_ATTEMPTS = 5
+
 
 class FirebaseHub(NetworkPlugin):
 	"""
@@ -23,6 +26,7 @@ class FirebaseHub(NetworkPlugin):
 	def __init__(self, identity_manager: IdentityManager, db_url: str | None = None, credential_path: str | None = None, agent_id: str | None = None):
 		super().__init__("firebase", identity_manager)
 		self.running = False
+		self._ingest_failures: dict[str, int] = {}
 		self.db_url = db_url or os.environ.get("FIREBASE_DB_URL")
 		self.credential_path = credential_path or os.environ.get("FIREBASE_CREDENTIALS")
 		self.agent_id = agent_id or os.environ.get("NEON_LINK_AGENT_ID")
@@ -126,6 +130,44 @@ class FirebaseHub(NetworkPlugin):
 		finally:
 			conn.close()
 
+	def _ingest_pkg(self, loop, msg_id: str, pkg, default_type: str, recipient_id: str | None) -> None:
+		"""Ingest one mailbox/broadcast package with per-message containment.
+
+		A malformed package (not an object, bad hex) can never succeed: it is marked
+		processed and skipped. A callback failure (DB locked…) leaves it unprocessed
+		so the next poll retries it, up to _MAX_INGEST_ATTEMPTS. Either way the rest
+		of the batch goes on — one bad message used to stall the mailbox forever.
+		"""
+		if self._is_msg_processed(msg_id):
+			return
+		try:
+			if not isinstance(pkg, dict):
+				raise ValueError(f"package is not an object: {type(pkg).__name__}")
+			payload_hex = pkg.get("payload", pkg.get("ciphertext", pkg.get("content", "")))
+			event = None
+			if payload_hex:
+				event = NetworkEvent(
+					type=pkg.get("mls_type", default_type),
+					recipient_id=recipient_id or pkg.get("group_id", self.agent_id),
+					payload=bytes.fromhex(payload_hex),
+				)
+		except (TypeError, ValueError) as e:
+			logger.error(f"[FirebaseHub] Malformed message {msg_id}: {e}; skipping")
+			self._mark_msg_processed(msg_id)
+			return
+		if event is not None:
+			try:
+				loop.run_until_complete(self._on_event_callback(self, pkg.get("sender_id", "unknown"), event))  # type: ignore
+			except Exception as e:
+				n = self._ingest_failures.get(msg_id, 0) + 1
+				if n < _MAX_INGEST_ATTEMPTS:
+					self._ingest_failures[msg_id] = n
+					logger.error(f"[FirebaseHub] Failed to ingest {msg_id} ({e}); retry {n}/{_MAX_INGEST_ATTEMPTS - 1}")
+					return
+				logger.error(f"[FirebaseHub] Dropping {msg_id} after {n} failed attempts: {e}")
+		self._ingest_failures.pop(msg_id, None)
+		self._mark_msg_processed(msg_id)
+
 	def _poll_firebase(self):
 		logger.info("[FirebaseHub] Started Firebase Ingress Polling...")
 		loop = asyncio.new_event_loop()
@@ -145,19 +187,7 @@ class FirebaseHub(NetworkPlugin):
 
 				if messages and self._on_event_callback:
 					for msg_id, pkg in messages.items():
-						if self._is_msg_processed(msg_id):
-							continue
-
-						sender_id = pkg.get("sender_id", "unknown")
-						mls_type = pkg.get("mls_type", "application")
-						payload_hex = pkg.get("payload", pkg.get("ciphertext", pkg.get("content", "")))
-						recipient_id = pkg.get("group_id", self.agent_id)
-
-						if payload_hex:
-							event = NetworkEvent(type=mls_type, recipient_id=recipient_id, payload=bytes.fromhex(payload_hex))
-							loop.run_until_complete(self._on_event_callback(self, sender_id, event))  # type: ignore
-
-						self._mark_msg_processed(msg_id)
+						self._ingest_pkg(loop, msg_id, pkg, "application", None)
 
 				# 2. Read community broadcast
 				broadcast_ref = db.reference(f"communities/{self.community_alias}/broadcast", app=self.app)
@@ -165,18 +195,7 @@ class FirebaseHub(NetworkPlugin):
 
 				if broadcasts and self._on_event_callback:
 					for msg_id, pkg in broadcasts.items():
-						if self._is_msg_processed(msg_id):
-							continue
-
-						sender_id = pkg.get("sender_id", "unknown")
-						mls_type = pkg.get("mls_type", "broadcast")
-						payload_hex = pkg.get("payload", pkg.get("ciphertext", pkg.get("content", "")))
-
-						if payload_hex:
-							event = NetworkEvent(type=mls_type, recipient_id="broadcast", payload=bytes.fromhex(payload_hex))
-							loop.run_until_complete(self._on_event_callback(self, sender_id, event))  # type: ignore
-
-						self._mark_msg_processed(msg_id)
+						self._ingest_pkg(loop, msg_id, pkg, "broadcast", "broadcast")
 
 				error_backoff = 2.0  # Reset backoff on success
 				time.sleep(2.0)

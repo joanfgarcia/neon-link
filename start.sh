@@ -5,9 +5,11 @@
 # problemas de seguridad con las auditorías al ir sin HTTPS.
 HOST="127.0.0.1"
 PORT="8770"
+# uv del PATH; bajo systemd (PATH mínimo) cae a la instalación por defecto del usuario.
+UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
 
 echo "Iniciando Neon-Link Daemon (Polling)..."
-/home/joan/.local/bin/uv run python src/neon_link/cli.py &
+"$UV" run python src/neon_link/cli.py &
 
 echo "Iniciando Neon-Link API en $HOST:$PORT..."
-/home/joan/.local/bin/uv run uvicorn neon_link.api.server:app --host $HOST --port $PORT --reload
+"$UV" run uvicorn neon_link.api.server:app --host $HOST --port $PORT --reload
