@@ -2,7 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.6.2] - Unreleased
+## [0.6.3] - Unreleased
+
+### Fixed
+- **Egress retries are time-based with exponential backoff** (`next_attempt_at`): 0.6.2 made the 3-retry cut reachable for the first time, but with no delay — three 1-second polls and the message went to `dead_letters` for good, so a short network blip (resume from suspend, Wi-Fi reconnect) lost it. Failed sends now back off 5 s → ×2 → 300 s cap and are only dead-lettered once older than `NEON_EGRESS_MAX_AGE_H` (default 24 h). Tunable: `NEON_EGRESS_BACKOFF_BASE_S`, `NEON_EGRESS_BACKOFF_MAX_S`.
+- **Permanent vs transient failures**: plugins raise `PermanentEgressError` for undeliverable messages (corrupt payload, Telegram 400/403) → dead-lettered at once; any other exception is retried (it used to dead-letter on the first network exception). A channel with no plugin in the running process is retried instead of dropped.
+- **Per-message commit** in the egress loop: the DB write lock is no longer held across network sends, and a crash mid-batch never re-sends delivered messages.
+- **Telegram**: `sendMessage` has a timeout (an unbounded POST could hang the egress thread), and a retry resumes after the chunks of a long message that were already delivered.
+
+### Added
+- **`neon-link redrive [DEAD_LETTER_ID ...]`**: requeues dead-lettered outbox messages (all, or by id) with a fresh clock.
+
+### Changed
+- Build artifacts (`*.egg-info`, `__pycache__`), old logs and the pre-XDG `storage/` seed are no longer tracked; pytest imports the checkout's own `src` (`pythonpath`).
+
+## [0.6.2] - 2026-10-02
 
 ### Fixed
 - **Egress no longer blocks on a single bad message**: the outbox loop used `row.get("retries", 0)` on a `sqlite3.Row` (no `.get`), raising `AttributeError` that escaped the per-loop handler and aborted the ENTIRE batch — every following message stalled forever. Fixed to `row["retries"]`, and each message is now processed in isolation (`_process_outbox_row`): a corrupt payload, unknown channel or unprocessable row is dead-lettered (`_fail_outbox_msg`) instead of halting the queue.
