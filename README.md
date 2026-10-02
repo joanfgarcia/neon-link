@@ -43,6 +43,9 @@ neon_link.db.set_db_path("/absolute/path/to/cortex.db")
 t_hub = TelegramHub(identity_manager, bot_token="TOKEN", allowed_user_id="ID")
 ```
 
+**Outbox delivery & dead letters:**
+A failed send is retried with exponential backoff (`NEON_EGRESS_BACKOFF_BASE_S`=5 s, doubling up to `NEON_EGRESS_BACKOFF_MAX_S`=300 s) and moved to `dead_letters` only once it is older than `NEON_EGRESS_MAX_AGE_H` (24 h) after at least 8 attempts; undeliverable messages (corrupt payload, recipient rejected by the network) go there at once. `uv run neon-link redrive --all` (or `redrive <dead_letter_id> ...`) puts them back in the queue.
+
 For more details, check our [Usage Guide](docs/GUIDES/USAGE.md) and [Examples](docs/EXAMPLES/CURL_EXAMPLES.md).
 
 ---
@@ -85,6 +88,9 @@ neon_link.db.set_db_path("/ruta/absoluta/hacia/cortex.db")
 # 2. Inyectar credenciales directamente en la instancia
 t_hub = TelegramHub(identity_manager, bot_token="TOKEN", allowed_user_id="ID")
 ```
+
+**Entrega del outbox y dead letters:**
+Un envío fallido se reintenta con backoff exponencial (`NEON_EGRESS_BACKOFF_BASE_S`=5 s, doblando hasta `NEON_EGRESS_BACKOFF_MAX_S`=300 s) y solo pasa a `dead_letters` cuando supera `NEON_EGRESS_MAX_AGE_H` (24 h) tras al menos 8 intentos; los imposibles de entregar (payload corrupto, destinatario rechazado por la red) van allí al momento. `uv run neon-link redrive --all` (o `redrive <id_dead_letter> ...`) los devuelve a la cola.
 
 Para más detalles, consulta nuestra [Guía de Uso](docs/GUIDES/USAGE.md) y los [Ejemplos](docs/EXAMPLES/CURL_EXAMPLES.md).
  

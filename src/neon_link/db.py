@@ -104,7 +104,7 @@ def init_db():
 			channel_user_id TEXT NOT NULL,
 			cascade_id TEXT,
 			payload TEXT NOT NULL,          -- JSON serialized response
-			status TEXT DEFAULT 'PENDING',  -- 'PENDING', 'SENT'
+			status TEXT DEFAULT 'PENDING',  -- 'PENDING', 'SENT', 'FAILED'
 			retries INTEGER DEFAULT 0,
 			next_attempt_at REAL,           -- egress backoff (epoch s); NULL = due now
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -127,7 +127,7 @@ def init_db():
 	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE outbox ADD COLUMN next_attempt_at REAL")  # egress backoff (epoch s)
 
-	# DEAD LETTERS: Messages that failed to process 3 times
+	# DEAD LETTERS: undeliverable or aged-out messages (`neon-link redrive` requeues outbox ones)
 	cursor.execute("""
 		CREATE TABLE IF NOT EXISTS dead_letters (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
