@@ -89,3 +89,51 @@ def test_split_message(mock_identity_manager):
 	assert chunks[0].endswith("...\n1/2")
 	assert chunks[1].startswith("...")
 	assert chunks[1].endswith("\n2/2")
+
+
+@pytest.mark.asyncio
+@patch("neon_link.plugins.telegram.requests")
+async def test_send_event_has_timeout(mock_req, mock_identity_manager):
+	"""Sin timeout un POST colgado bloqueaba el hilo de egress para siempre."""
+	hub = TelegramHub(mock_identity_manager, bot_token="T", allowed_user_id="123")
+	mock_req.post.return_value.status_code = 200
+	from neon_link.models.network import NetworkEvent
+
+	await hub.send_event(NetworkEvent(type="application", recipient_id="123", payload=b"Hello"))
+	assert mock_req.post.call_args.kwargs["timeout"]
+
+
+@pytest.mark.asyncio
+@patch("neon_link.plugins.telegram.requests")
+async def test_send_event_rejection_is_permanent(mock_req, mock_identity_manager):
+	from neon_link.models.network import NetworkEvent
+	from neon_link.plugins.base import PermanentEgressError
+
+	hub = TelegramHub(mock_identity_manager, bot_token="T", allowed_user_id="123")
+	mock_req.post.return_value.status_code = 400
+	mock_req.post.return_value.text = '{"description":"Bad Request: chat not found"}'
+	with pytest.raises(PermanentEgressError):
+		await hub.send_event(NetworkEvent(type="application", recipient_id="999", payload=b"Hello"))
+
+
+@pytest.mark.asyncio
+@patch("neon_link.plugins.telegram.asyncio.sleep", new_callable=AsyncMock)
+@patch("neon_link.plugins.telegram.requests")
+async def test_send_event_retry_resumes_after_delivered_chunks(mock_req, _sleep, mock_identity_manager):
+	"""Un reintento no reenvía los trozos ya entregados de un mensaje largo."""
+	from neon_link.models.network import NetworkEvent
+
+	hub = TelegramHub(mock_identity_manager, bot_token="T", allowed_user_id="123")
+	ok, err = MagicMock(status_code=200), MagicMock(status_code=502, text="bad gateway")
+	event = NetworkEvent(type="application", recipient_id="123", payload=("x" * 9000).encode())
+
+	mock_req.post.side_effect = [ok, err]
+	assert await hub.send_event(event) is False
+	mock_req.post.side_effect = [ok, ok]
+	assert await hub.send_event(event) is True
+
+	sent = [c.kwargs["json"]["text"] for c in mock_req.post.call_args_list]
+	assert len(sent) == 4
+	assert sent[0].endswith("1/3") and sent[2].endswith("2/3") and sent[3].endswith("3/3")
+	assert not hub._chunk_progress
+

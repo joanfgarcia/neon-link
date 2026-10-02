@@ -163,6 +163,29 @@ def start_daemon():
 		loop.run_until_complete(manager.stop_all())
 
 
+def redrive(args: list[str]) -> int:
+	"""Requeue dead-lettered outbox messages: all, or the dead_letter ids given."""
+	from neon_link.core.manager import redrive_outbox_dead_letters
+	from neon_link.db import get_connection, init_db
+
+	try:
+		ids = [int(a) for a in args]
+	except ValueError:
+		print("Usage: neon-link redrive [DEAD_LETTER_ID ...]")
+		return 1
+	env_file = get_config_dir() / ".env"
+	if env_file.exists():
+		load_dotenv(env_file)  # same DB as the daemon (NEON_LINK_DB_PATH)
+	init_db()
+	conn = get_connection()
+	try:
+		n = redrive_outbox_dead_letters(conn, ids or None)
+	finally:
+		conn.close()
+	print(f"Requeued {n} outbox message(s).")
+	return 0
+
+
 def main():
 	if len(sys.argv) > 1:
 		cmd = sys.argv[1]
@@ -170,11 +193,14 @@ def main():
 			init_config()
 		elif cmd == "start":
 			start_daemon()
+		elif cmd == "redrive":
+			sys.exit(redrive(sys.argv[2:]))
 		elif cmd in ("-h", "--help", "help"):
 			print("Neon-Link Agnostic Communication Hub")
 			print("Usage:")
 			print("  neon-link init    - Initializes ~/.config/neon-link/.env and events.db")
 			print("  neon-link start   - Starts the daemon")
+			print("  neon-link redrive [ID ...] - Requeues dead-lettered outbox messages (all, or by id)")
 			print("  neon-link --help  - Shows this message")
 		else:
 			print(f"Unknown command: {cmd}")

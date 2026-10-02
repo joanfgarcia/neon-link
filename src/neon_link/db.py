@@ -106,6 +106,7 @@ def init_db():
 			payload TEXT NOT NULL,          -- JSON serialized response
 			status TEXT DEFAULT 'PENDING',  -- 'PENDING', 'SENT'
 			retries INTEGER DEFAULT 0,
+			next_attempt_at REAL,           -- egress backoff (epoch s); NULL = due now
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	""")
@@ -123,6 +124,8 @@ def init_db():
 		cursor.execute("ALTER TABLE telegram_sessions ADD COLUMN backend TEXT")  # D1/D8: backend del catálogo, no por prefijo
 	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE outbox ADD COLUMN retries INTEGER DEFAULT 0")
+	with contextlib.suppress(sqlite3.OperationalError):
+		cursor.execute("ALTER TABLE outbox ADD COLUMN next_attempt_at REAL")  # egress backoff (epoch s)
 
 	# DEAD LETTERS: Messages that failed to process 3 times
 	cursor.execute("""

@@ -1,3 +1,4 @@
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -100,6 +101,7 @@ def test_network_plugin_base():
 
 @patch("neon_link.core.manager.get_connection")
 def test_poll_outbox_loop_failures(mock_get_conn, manager_setup):
+	"""A failed send older than the age cap is dead-lettered."""
 	mock_conn = MagicMock()
 	mock_cursor = MagicMock()
 	mock_conn.cursor.return_value = mock_cursor
@@ -107,7 +109,14 @@ def test_poll_outbox_loop_failures(mock_get_conn, manager_setup):
 
 	import json
 
-	row = {"id": 1, "channel": "telegram", "channel_user_id": "user123", "payload": json.dumps({"text": "Hello"}), "retries": 2}
+	row = {
+		"id": 1,
+		"channel": "telegram",
+		"channel_user_id": "user123",
+		"payload": json.dumps({"text": "Hello"}),
+		"retries": 2,
+		"age_s": 25 * 3600,
+	}
 	mock_cursor.fetchall.return_value = [row]
 
 	plugin = MagicMock()
@@ -129,7 +138,7 @@ def test_poll_outbox_loop_failures(mock_get_conn, manager_setup):
 	mock_cursor.execute.assert_any_call("UPDATE outbox SET status = 'FAILED' WHERE id = ?", (1,))
 	mock_cursor.execute.assert_any_call(
 		"INSERT INTO dead_letters (original_table, original_id, channel, channel_user_id, payload, error_reason) VALUES (?, ?, ?, ?, ?, ?)",
-		("outbox", 1, "telegram", "user123", row["payload"], "Failed after 3 retries"),
+		("outbox", 1, "telegram", "user123", row["payload"], "send failed; gave up after 3 attempts (25.0h old)"),
 	)
 
 
@@ -148,7 +157,8 @@ def _real_conn(tmp_path):
 		"""
 		CREATE TABLE outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, message_id TEXT,
 			channel TEXT, channel_user_id TEXT, payload TEXT,
-			status TEXT DEFAULT 'PENDING', retries INTEGER DEFAULT 0, created_at TEXT);
+			status TEXT DEFAULT 'PENDING', retries INTEGER DEFAULT 0, next_attempt_at REAL,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 		CREATE TABLE dead_letters (id INTEGER PRIMARY KEY AUTOINCREMENT, original_table TEXT,
 			original_id INTEGER, channel TEXT, channel_user_id TEXT, payload TEXT, error_reason TEXT);
 		"""
@@ -161,9 +171,7 @@ def _real_conn(tmp_path):
 def test_poll_uses_real_sqlite_row(mock_get_conn, manager_setup, tmp_path):
 	"""Un Row real (retries entero) NO debe romper con AttributeError."""
 	conn = _real_conn(tmp_path)
-	conn.execute(
-		"INSERT INTO outbox (channel, channel_user_id, payload, created_at) VALUES ('telegram','user123',?, '2026-01-01')", ('{"text":"Hello"}',)
-	)
+	conn.execute("INSERT INTO outbox (channel, channel_user_id, payload) VALUES ('telegram','user123',?)", ('{"text":"Hello"}',))
 	conn.commit()
 	mock_get_conn.return_value = conn
 
@@ -181,8 +189,10 @@ def test_poll_uses_real_sqlite_row(mock_get_conn, manager_setup, tmp_path):
 
 	check = _s.connect(str(tmp_path / "events.db"))
 	check.row_factory = _s.Row
-	# retries debe haber subido a 1 (no crash, no dead-letter todavía)
-	assert check.execute("SELECT retries FROM outbox WHERE id=1").fetchone()[0] == 1
+	# retries debe haber subido a 1 (no crash, no dead-letter todavía) y con backoff
+	retries, next_at = check.execute("SELECT retries, next_attempt_at FROM outbox WHERE id=1").fetchone()
+	assert retries == 1
+	assert next_at > time.time()
 	check.close()
 
 
@@ -217,3 +227,137 @@ def test_bad_message_does_not_block_following(mock_get_conn, manager_setup, tmp_
 	assert statuses[2] == "SENT", "el mensaje bueno debe entregarse pese al corrupto anterior"
 	assert check.execute("SELECT COUNT(*) FROM dead_letters").fetchone()[0] == 1
 	check.close()
+
+
+# ── Retry policy: time-based backoff, permanent vs transient, redrive ───────
+
+
+def _run_once(manager, conn, mock_get_conn, polls=1):
+	"""Run the poll loop `polls` times against a real DB (fresh conn each poll)."""
+	import sqlite3
+
+	path = conn.execute("PRAGMA database_list").fetchone()[2]
+
+	def _conn():
+		c = sqlite3.connect(path)
+		c.row_factory = sqlite3.Row
+		return c
+
+	mock_get_conn.side_effect = _conn
+	remaining = {"n": polls}
+
+	def _sleep(*_):
+		remaining["n"] -= 1
+		if remaining["n"] <= 0:
+			manager.running = False
+
+	manager.running = True
+	with patch("time.sleep", side_effect=_sleep):
+		manager._poll_outbox_loop()
+
+
+def _telegram(manager):
+	plugin = MagicMock()
+	plugin.name = "telegram"
+	manager.register(plugin)
+	manager._resolve_session = MagicMock(return_value="user123")
+	return plugin
+
+
+def _status(tmp_path):
+	import sqlite3
+
+	c = sqlite3.connect(str(tmp_path / "events.db"))
+	c.row_factory = sqlite3.Row
+	try:
+		row = c.execute("SELECT status, retries, next_attempt_at FROM outbox WHERE id=1").fetchone()
+		dead = c.execute("SELECT COUNT(*) FROM dead_letters").fetchone()[0]
+		return dict(row), dead
+	finally:
+		c.close()
+
+
+@patch("neon_link.core.manager.get_connection")
+def test_transient_failure_backs_off_instead_of_hammering(mock_get_conn, manager_setup, tmp_path):
+	"""Un corte de red corto ya no pierde el mensaje: 3 polls seguidos = 1 intento."""
+	conn = _real_conn(tmp_path)
+	conn.execute("INSERT INTO outbox (channel, channel_user_id, payload) VALUES ('telegram','u',?)", ('{"text":"hola"}',))
+	conn.commit()
+	_telegram(manager_setup)
+	manager_setup.pipeline.process_egress = AsyncMock(return_value=False)
+
+	_run_once(manager_setup, conn, mock_get_conn, polls=3)
+
+	assert manager_setup.pipeline.process_egress.await_count == 1
+	row, dead = _status(tmp_path)
+	assert row["status"] == "PENDING" and row["retries"] == 1 and dead == 0
+
+
+@patch("neon_link.core.manager.get_connection")
+def test_transient_exception_is_retried_not_dead_lettered(mock_get_conn, manager_setup, tmp_path):
+	conn = _real_conn(tmp_path)
+	conn.execute("INSERT INTO outbox (channel, channel_user_id, payload) VALUES ('telegram','u',?)", ('{"text":"hola"}',))
+	conn.commit()
+	_telegram(manager_setup)
+	manager_setup.pipeline.process_egress = AsyncMock(side_effect=ConnectionError("network down"))
+
+	_run_once(manager_setup, conn, mock_get_conn)
+
+	row, dead = _status(tmp_path)
+	assert row["status"] == "PENDING" and row["retries"] == 1 and dead == 0
+
+
+@patch("neon_link.core.manager.get_connection")
+def test_permanent_error_dead_letters_immediately(mock_get_conn, manager_setup, tmp_path):
+	from neon_link.plugins.base import PermanentEgressError
+
+	conn = _real_conn(tmp_path)
+	conn.execute("INSERT INTO outbox (channel, channel_user_id, payload) VALUES ('telegram','u',?)", ('{"text":"hola"}',))
+	conn.commit()
+	_telegram(manager_setup)
+	manager_setup.pipeline.process_egress = AsyncMock(side_effect=PermanentEgressError("chat not found"))
+
+	_run_once(manager_setup, conn, mock_get_conn)
+
+	row, dead = _status(tmp_path)
+	assert row["status"] == "FAILED" and dead == 1
+
+
+@patch("neon_link.core.manager.get_connection")
+def test_unknown_channel_waits_for_its_plugin(mock_get_conn, manager_setup, tmp_path):
+	"""Canal sin plugin en este proceso: backoff (un reinicio con el plugin lo entrega)."""
+	conn = _real_conn(tmp_path)
+	conn.execute("INSERT INTO outbox (channel, channel_user_id, payload) VALUES ('rings','u',?)", ('{"text":"hola"}',))
+	conn.commit()
+
+	_run_once(manager_setup, conn, mock_get_conn)
+
+	row, dead = _status(tmp_path)
+	assert row["status"] == "PENDING" and row["retries"] == 1 and dead == 0
+
+
+@patch("neon_link.core.manager.get_connection")
+def test_aged_out_message_is_dead_lettered_and_redrive_requeues(mock_get_conn, manager_setup, tmp_path):
+	import sqlite3
+
+	from neon_link.core.manager import redrive_outbox_dead_letters
+
+	conn = _real_conn(tmp_path)
+	conn.execute(
+		"INSERT INTO outbox (channel, channel_user_id, payload, created_at) VALUES ('telegram','u',?, datetime('now','-2 days'))",
+		('{"text":"hola"}',),
+	)
+	conn.commit()
+	_telegram(manager_setup)
+	manager_setup.pipeline.process_egress = AsyncMock(return_value=False)
+
+	_run_once(manager_setup, conn, mock_get_conn)
+	row, dead = _status(tmp_path)
+	assert row["status"] == "FAILED" and dead == 1
+
+	c = sqlite3.connect(str(tmp_path / "events.db"))
+	assert redrive_outbox_dead_letters(c) == 1
+	c.close()
+	row, dead = _status(tmp_path)
+	assert row["status"] == "PENDING" and row["retries"] == 0 and row["next_attempt_at"] is None and dead == 0
+

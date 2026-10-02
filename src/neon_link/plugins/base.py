@@ -5,6 +5,12 @@ from neon_link.core.crypto import IdentityManager
 from neon_link.models.network import NetworkEvent
 
 
+class PermanentEgressError(Exception):
+	"""Un envío que nunca podrá entregarse (payload corrupto, destinatario rechazado
+	por la red). El manager lo manda a dead_letters sin reintentar; cualquier otro
+	fallo se trata como transitorio y se reintenta con backoff."""
+
+
 class NetworkPlugin(ABC):
 	"""
 	Interfaz abstracta (Contrato) para cualquier proveedor de red (Pipeline Pattern).

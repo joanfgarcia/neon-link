@@ -1,21 +1,31 @@
 import asyncio
+import hashlib
 import json
 import logging
 import os
 import threading
 import time
+from collections import OrderedDict
 
 import requests  # type: ignore[import-untyped]
 from dotenv import load_dotenv
 
 from neon_link.core.crypto import IdentityManager
 from neon_link.models.network import NetworkEvent
-from neon_link.plugins.base import NetworkPlugin
+from neon_link.plugins.base import NetworkPlugin, PermanentEgressError
 
 load_dotenv()
 from neon_link.db import get_connection  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# (connect, read) seconds for sendMessage: an unbounded POST could hang the egress
+# thread forever — the exact stall the outbox containment exists to prevent.
+SEND_TIMEOUT = (5, 30)
+# Bot API rejections that no retry can fix (bad request / chat not found, bot blocked).
+_PERMANENT_STATUS = (400, 403)
+# Messages whose chunks were partially delivered; bounded so a dead one cannot leak.
+_MAX_TRACKED_PROGRESS = 256
 
 
 class TelegramHub(NetworkPlugin):
@@ -25,6 +35,10 @@ class TelegramHub(NetworkPlugin):
 		self.allowed_user_id = allowed_user_id or os.environ.get("TELEGRAM_WHITELIST_ID")
 		self.offset = 0
 		self.running = False
+		# chunks already delivered per (recipient, text): a retry resumes after
+		# them instead of re-sending the whole series (in-memory; a restart may
+		# repeat the delivered part once).
+		self._chunk_progress: OrderedDict[str, int] = OrderedDict()
 
 		if not self.allowed_user_id or not self.bot_token:
 			logger.warning("TELEGRAM_WHITELIST_ID or TELEGRAM_BOT_TOKEN missing. Telegram Hub might fail if enabled.")
@@ -71,7 +85,7 @@ class TelegramHub(NetworkPlugin):
 		for chunk in chunks:
 			url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
 			try:
-				requests.post(url, json={"chat_id": chat_id, "text": chunk})
+				requests.post(url, json={"chat_id": chat_id, "text": chunk}, timeout=SEND_TIMEOUT)
 			except Exception as e:
 				logger.error(f"Failed to send message to Telegram: {e}")
 
@@ -80,20 +94,35 @@ class TelegramHub(NetworkPlugin):
 		if not text:
 			return True
 		chunks = self._split_message(text)
-		all_success = True
-		for chunk in chunks:
-			url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+		key = hashlib.sha256(f"{event.recipient_id}\0{text}".encode()).hexdigest()
+		sent = self._chunk_progress.get(key, 0)
+		url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+		for idx in range(sent, len(chunks)):
 			try:
-				resp = requests.post(url, json={"chat_id": event.recipient_id, "text": chunk})
-				if resp.status_code != 200:
-					logger.error(f"Telegram API error: {resp.text}")
-					all_success = False
-				else:
-					await asyncio.sleep(0.2)
+				resp = requests.post(url, json={"chat_id": event.recipient_id, "text": chunks[idx]}, timeout=SEND_TIMEOUT)
 			except Exception as e:
 				logger.error(f"Failed to send message to Telegram: {e}")
-				all_success = False
-		return all_success
+				self._remember_progress(key, idx)
+				return False
+			if resp.status_code in _PERMANENT_STATUS:
+				self._chunk_progress.pop(key, None)
+				raise PermanentEgressError(f"Telegram API {resp.status_code}: {resp.text[:200]}")
+			if resp.status_code != 200:
+				logger.error(f"Telegram API error: {resp.text}")
+				self._remember_progress(key, idx)
+				return False
+			await asyncio.sleep(0.2)
+		self._chunk_progress.pop(key, None)
+		return True
+
+	def _remember_progress(self, key: str, delivered: int) -> None:
+		if delivered <= 0:
+			self._chunk_progress.pop(key, None)
+			return
+		self._chunk_progress[key] = delivered
+		self._chunk_progress.move_to_end(key)
+		while len(self._chunk_progress) > _MAX_TRACKED_PROGRESS:
+			self._chunk_progress.popitem(last=False)
 
 	async def fetch_key_package(self, agent_id: str) -> bytes | None:
 		return None
