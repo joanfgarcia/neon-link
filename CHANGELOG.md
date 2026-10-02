@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.6.3] - Unreleased
+## [0.6.3] - 2026-10-02
 
 ### Fixed
 - **Egress retries are time-based with exponential backoff** (`next_attempt_at`): 0.6.2 made the 3-retry cut reachable for the first time, but with no delay — three 1-second polls and the message went to `dead_letters` for good, so a short network blip (resume from suspend, Wi-Fi reconnect) lost it. Failed sends now back off 5 s → ×2 → 300 s cap and are dead-lettered only once older than `NEON_EGRESS_MAX_AGE_H` (default 24 h) **and** after at least 8 attempts (a message waiting through a >24 h suspend is not dropped on its first failure). Tunable: `NEON_EGRESS_BACKOFF_BASE_S`, `NEON_EGRESS_BACKOFF_MAX_S`; invalid values fall back to the defaults.
