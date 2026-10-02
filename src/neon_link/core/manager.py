@@ -18,9 +18,22 @@ logger = logging.getLogger(__name__)
 # reintenta con backoff exponencial (BASE, x2, tope MAX) mientras el mensaje tenga
 # menos de MAX_AGE. Un corte de red corto (vuelta de suspensión, wifi) no pierde
 # el mensaje, y uno roto no se martillea cada segundo.
-EGRESS_BACKOFF_BASE_S = float(os.getenv("NEON_EGRESS_BACKOFF_BASE_S", "5"))
-EGRESS_BACKOFF_MAX_S = float(os.getenv("NEON_EGRESS_BACKOFF_MAX_S", "300"))
-EGRESS_MAX_AGE_S = float(os.getenv("NEON_EGRESS_MAX_AGE_H", "24")) * 3600
+def _env_float(name: str, default: float) -> float:
+	try:
+		return float(os.getenv(name, default))
+	except (TypeError, ValueError):
+		logger.warning(f"[Manager] Invalid {name}={os.getenv(name)!r}; using {default}")
+		return default
+
+
+EGRESS_BACKOFF_BASE_S = _env_float("NEON_EGRESS_BACKOFF_BASE_S", 5.0)
+EGRESS_BACKOFF_MAX_S = _env_float("NEON_EGRESS_BACKOFF_MAX_S", 300.0)
+EGRESS_MAX_AGE_S = _env_float("NEON_EGRESS_MAX_AGE_H", 24.0) * 3600
+# Un mensaje solo se abandona por edad tras EGRESS_MIN_ATTEMPTS intentos: tras una
+# suspensión de más de MAX_AGE, el primer fallo (wifi aún caído) no lo descarta.
+EGRESS_MIN_ATTEMPTS = 8
+# Recording SENT is retried this many times on a locked DB before giving up for this poll.
+_SENT_RECORD_TRIES = 5
 
 
 class PluginManager:
@@ -30,6 +43,8 @@ class PluginManager:
 		self.identity_manager = identity_manager
 		self.pipeline = CryptoPipeline(identity_manager, agent_id)
 		self.running = False
+		# Outbox ids delivered whose SENT could not be recorded (DB locked): never re-sent.
+		self._delivered_unrecorded: set[int] = set()
 
 	def register(self, plugin: NetworkPlugin):
 		"""Registra un plugin y le inyecta el callback de llegada de eventos."""
@@ -89,7 +104,7 @@ class PluginManager:
 				cursor = conn.cursor()
 				cursor.execute(
 					"SELECT *, (julianday('now') - julianday(created_at)) * 86400.0 AS age_s FROM outbox "
-					"WHERE status = 'PENDING' AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY created_at ASC",
+					"WHERE status = 'PENDING' AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY created_at ASC, id ASC",
 					(time.time(),),
 				)
 				rows = cursor.fetchall()
@@ -123,6 +138,10 @@ class PluginManager:
 	def _process_outbox_row(self, loop, cursor, row) -> None:
 		"""Process a single outbox row. Raises PermanentEgressError for messages
 		that can never be delivered; any other failure is retried with backoff."""
+		if row["id"] in self._delivered_unrecorded:
+			# Already delivered on a previous poll; only the SENT write is missing.
+			self._mark_sent(cursor, row)
+			return
 		channel = row["channel"]
 		if channel not in self.plugins:
 			# Not registered in THIS process (plugin disabled/failed to start):
@@ -149,16 +168,32 @@ class PluginManager:
 		success = loop.run_until_complete(self.pipeline.process_egress(plugin, recipient_id, text))
 
 		if success:
-			cursor.execute("UPDATE outbox SET status = 'SENT' WHERE id = ?", (row["id"],))
+			self._mark_sent(cursor, row)
 			logger.info(f"[Manager] Processed Egress for msg {row['id']} via {channel}")
 			return
 		self._schedule_retry(cursor, row, "send failed")
+
+	def _mark_sent(self, cursor, row) -> None:
+		"""Record a delivered message as SENT. A locked DB must not turn a delivery
+		into a retry (that re-sends it): the write is retried, and if it still fails
+		the id is remembered so the next poll only records it."""
+		for attempt in range(_SENT_RECORD_TRIES):
+			try:
+				cursor.execute("UPDATE outbox SET status = 'SENT' WHERE id = ?", (row["id"],))
+				self._delivered_unrecorded.discard(row["id"])
+				return
+			except sqlite3.OperationalError as e:
+				if attempt == _SENT_RECORD_TRIES - 1:
+					self._delivered_unrecorded.add(row["id"])
+					logger.error(f"[Manager] Msg {row['id']} delivered but SENT not recorded ({e}); will record next poll")
+					return
+				time.sleep(0.2 * (attempt + 1))
 
 	def _schedule_retry(self, cursor, row, reason: str) -> None:
 		"""Backoff the row, or dead-letter it once it is older than EGRESS_MAX_AGE_S."""
 		retries = (row["retries"] or 0) + 1
 		age_s = _row_age_s(row)
-		if age_s >= EGRESS_MAX_AGE_S:
+		if age_s >= EGRESS_MAX_AGE_S and retries >= EGRESS_MIN_ATTEMPTS:
 			self._fail_outbox_msg(cursor, row, row["channel"], f"{reason}; gave up after {retries} attempts ({age_s / 3600:.1f}h old)")
 			logger.error(f"[Manager] Egress gave up on msg {row['id']} after {retries} attempts. Moved to dead_letters.")
 			return
@@ -188,28 +223,35 @@ def _row_age_s(row) -> float:
 	return float(age) if age is not None else 0.0
 
 
-def redrive_outbox_dead_letters(conn, ids: list[int] | None = None) -> int:
-	"""Requeue dead-lettered OUTBOX messages (all, or the given dead_letter ids).
+def redrive_outbox_dead_letters(conn, ids: list[int] | None = None) -> tuple[int, list[int]]:
+	"""Requeue dead-lettered OUTBOX messages: all (`ids=None`) or the given dead_letter ids.
 
 	The outbox row goes back to PENDING with a fresh clock (retries, backoff and
-	created_at reset, so the age cap starts over) and its dead_letter entry is
-	removed — the message itself lives on in the outbox. Returns rows requeued.
+	created_at reset, so the age cap starts over); if that row is gone (purged)
+	the message is re-inserted from the dead letter's own payload. The dead_letter
+	entry is removed. Returns (requeued, requested ids that were not found).
 	"""
-	query = "SELECT id, original_id FROM dead_letters WHERE original_table = 'outbox'"
+	query = "SELECT id, original_id, channel, channel_user_id, payload FROM dead_letters WHERE original_table = 'outbox'"
 	params: list = []
 	if ids:
 		query += f" AND id IN ({','.join('?' * len(ids))})"
 		params = list(ids)
 	letters = conn.execute(query, params).fetchall()
+	found = {letter[0] for letter in letters}
+	missing = [i for i in (ids or []) if i not in found]
 	requeued = 0
-	for letter_id, outbox_id in letters:
+	for letter_id, outbox_id, channel, channel_user_id, payload in letters:
 		cur = conn.execute(
 			"UPDATE outbox SET status = 'PENDING', retries = 0, next_attempt_at = NULL, created_at = CURRENT_TIMESTAMP "
 			"WHERE id = ? AND status = 'FAILED'",
 			(outbox_id,),
 		)
-		if cur.rowcount:
-			conn.execute("DELETE FROM dead_letters WHERE id = ?", (letter_id,))
-			requeued += 1
+		if not cur.rowcount:
+			conn.execute(
+				"INSERT INTO outbox (channel, channel_user_id, payload) VALUES (?, ?, ?)",
+				(channel, channel_user_id, payload),
+			)
+		conn.execute("DELETE FROM dead_letters WHERE id = ?", (letter_id,))
+		requeued += 1
 	conn.commit()
-	return requeued
+	return requeued, missing

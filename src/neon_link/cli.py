@@ -164,25 +164,36 @@ def start_daemon():
 
 
 def redrive(args: list[str]) -> int:
-	"""Requeue dead-lettered outbox messages: all, or the dead_letter ids given."""
+	"""Requeue dead-lettered outbox messages: `--all`, or the dead_letter ids given."""
+	usage = "Usage: neon-link redrive --all | DEAD_LETTER_ID [...]"
+	if args == ["--all"]:
+		ids = None
+	else:
+		try:
+			ids = [int(a) for a in args]
+		except ValueError:
+			ids = []
+		if not ids:
+			print(usage)
+			return 1
+	# Same DB as the daemon: its XDG .env must win over any local .env, so load it
+	# BEFORE importing neon_link.db (which runs load_dotenv() on import).
+	env_file = get_config_dir() / ".env"
+	if env_file.exists():
+		load_dotenv(env_file)
 	from neon_link.core.manager import redrive_outbox_dead_letters
 	from neon_link.db import get_connection, init_db
 
-	try:
-		ids = [int(a) for a in args]
-	except ValueError:
-		print("Usage: neon-link redrive [DEAD_LETTER_ID ...]")
-		return 1
-	env_file = get_config_dir() / ".env"
-	if env_file.exists():
-		load_dotenv(env_file)  # same DB as the daemon (NEON_LINK_DB_PATH)
 	init_db()
 	conn = get_connection()
 	try:
-		n = redrive_outbox_dead_letters(conn, ids or None)
+		n, missing = redrive_outbox_dead_letters(conn, ids)
 	finally:
 		conn.close()
 	print(f"Requeued {n} outbox message(s).")
+	if missing:
+		print(f"Dead letters not found: {', '.join(map(str, missing))}")
+		return 1
 	return 0
 
 
@@ -200,7 +211,7 @@ def main():
 			print("Usage:")
 			print("  neon-link init    - Initializes ~/.config/neon-link/.env and events.db")
 			print("  neon-link start   - Starts the daemon")
-			print("  neon-link redrive [ID ...] - Requeues dead-lettered outbox messages (all, or by id)")
+			print("  neon-link redrive --all | ID ... - Requeues dead-lettered outbox messages")
 			print("  neon-link --help  - Shows this message")
 		else:
 			print(f"Unknown command: {cmd}")

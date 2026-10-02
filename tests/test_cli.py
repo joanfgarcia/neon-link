@@ -73,3 +73,11 @@ def test_cli_keyboard_interrupt():
 	):
 		cli.main()
 		m_loop.return_value.run_until_complete.assert_called()
+
+
+def test_redrive_requires_all_or_ids(capsys):
+	from neon_link.cli import redrive
+
+	assert redrive([]) == 1
+	assert redrive(["x"]) == 1
+	assert "redrive --all" in capsys.readouterr().out

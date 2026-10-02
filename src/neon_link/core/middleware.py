@@ -9,7 +9,7 @@ from pure_mls.tree import KeyPackage
 from neon_link.core.crypto import IdentityManager
 from neon_link.db import get_connection
 from neon_link.models.network import NetworkEvent
-from neon_link.plugins.base import NetworkPlugin
+from neon_link.plugins.base import NetworkPlugin, PermanentEgressError
 
 logger = logging.getLogger(__name__)
 
@@ -84,17 +84,22 @@ class CryptoPipeline:
 
 		# Encrypt application message
 		try:
-			# Advance epoch for Forward Secrecy before sending app message
-			group, update = group.update_key()
-			self._save_group_state(group_id, group)
-
+			# Advance epoch for Forward Secrecy before sending the app message. The new
+			# epoch is persisted only once its commit reached the network: a lost commit
+			# would desync the group for good, and each egress retry used to burn (and
+			# persist) one more epoch.
+			next_group, update = group.update_key()
 			update_event = NetworkEvent(type="update", recipient_id=group_id, payload=MLSMessage.wrap_commit(update).to_bytes())
-			await plugin.send_event(update_event)
+			if not await plugin.send_event(update_event):
+				return False
+			self._save_group_state(group_id, next_group)
 
-			ciphertext = group.encrypt_application_message(payload_str.encode())
+			ciphertext = next_group.encrypt_application_message(payload_str.encode())
 			event = NetworkEvent(type="application", recipient_id=group_id, payload=ciphertext)
-			self._save_group_state(group_id, group)
+			self._save_group_state(group_id, next_group)
 			return await plugin.send_event(event)
+		except PermanentEgressError:
+			raise
 		except Exception as e:
 			logger.error(f"[Pipeline] Encryption/Commit failed: {e}")
 			return False

@@ -114,7 +114,7 @@ def test_poll_outbox_loop_failures(mock_get_conn, manager_setup):
 		"channel": "telegram",
 		"channel_user_id": "user123",
 		"payload": json.dumps({"text": "Hello"}),
-		"retries": 2,
+		"retries": 7,
 		"age_s": 25 * 3600,
 	}
 	mock_cursor.fetchall.return_value = [row]
@@ -138,7 +138,7 @@ def test_poll_outbox_loop_failures(mock_get_conn, manager_setup):
 	mock_cursor.execute.assert_any_call("UPDATE outbox SET status = 'FAILED' WHERE id = ?", (1,))
 	mock_cursor.execute.assert_any_call(
 		"INSERT INTO dead_letters (original_table, original_id, channel, channel_user_id, payload, error_reason) VALUES (?, ?, ?, ?, ?, ?)",
-		("outbox", 1, "telegram", "user123", row["payload"], "send failed; gave up after 3 attempts (25.0h old)"),
+		("outbox", 1, "telegram", "user123", row["payload"], "send failed; gave up after 8 attempts (25.0h old)"),
 	)
 
 
@@ -340,12 +340,12 @@ def test_unknown_channel_waits_for_its_plugin(mock_get_conn, manager_setup, tmp_
 def test_aged_out_message_is_dead_lettered_and_redrive_requeues(mock_get_conn, manager_setup, tmp_path):
 	import sqlite3
 
-	from neon_link.core.manager import redrive_outbox_dead_letters
+	from neon_link.core.manager import EGRESS_MIN_ATTEMPTS, redrive_outbox_dead_letters
 
 	conn = _real_conn(tmp_path)
 	conn.execute(
-		"INSERT INTO outbox (channel, channel_user_id, payload, created_at) VALUES ('telegram','u',?, datetime('now','-2 days'))",
-		('{"text":"hola"}',),
+		"INSERT INTO outbox (channel, channel_user_id, payload, retries, created_at) VALUES ('telegram','u',?, ?, datetime('now','-2 days'))",
+		('{"text":"hola"}', EGRESS_MIN_ATTEMPTS - 1),
 	)
 	conn.commit()
 	_telegram(manager_setup)
@@ -356,8 +356,70 @@ def test_aged_out_message_is_dead_lettered_and_redrive_requeues(mock_get_conn, m
 	assert row["status"] == "FAILED" and dead == 1
 
 	c = sqlite3.connect(str(tmp_path / "events.db"))
-	assert redrive_outbox_dead_letters(c) == 1
+	assert redrive_outbox_dead_letters(c) == (1, [])
 	c.close()
 	row, dead = _status(tmp_path)
 	assert row["status"] == "PENDING" and row["retries"] == 0 and row["next_attempt_at"] is None and dead == 0
 
+
+@patch("neon_link.core.manager.get_connection")
+def test_old_message_is_not_dropped_on_its_first_failure(mock_get_conn, manager_setup, tmp_path):
+	"""Tras una suspensión de > 24 h, el primer fallo (red aún caída) no lo descarta."""
+	conn = _real_conn(tmp_path)
+	conn.execute(
+		"INSERT INTO outbox (channel, channel_user_id, payload, created_at) VALUES ('telegram','u',?, datetime('now','-2 days'))",
+		('{"text":"hola"}',),
+	)
+	conn.commit()
+	_telegram(manager_setup)
+	manager_setup.pipeline.process_egress = AsyncMock(return_value=False)
+
+	_run_once(manager_setup, conn, mock_get_conn)
+
+	row, dead = _status(tmp_path)
+	assert row["status"] == "PENDING" and row["retries"] == 1 and dead == 0
+
+
+def test_delivered_message_is_not_resent_when_db_is_locked(manager_setup):
+	"""Entregado + UPDATE SENT bloqueado: no se reprograma (eso lo reenviaría)."""
+	import sqlite3
+
+	row = {"id": 7, "channel": "telegram", "channel_user_id": "u", "payload": '{"text":"hola"}', "retries": 0, "age_s": 0}
+	_telegram(manager_setup)
+	manager_setup.pipeline.process_egress = AsyncMock(return_value=True)
+	cursor = MagicMock()
+	cursor.execute.side_effect = sqlite3.OperationalError("database is locked")
+	loop = __import__("asyncio").new_event_loop()
+	try:
+		with patch("neon_link.core.manager.time.sleep"):
+			manager_setup._process_outbox_row_contained(loop, cursor, row)
+		assert manager_setup.pipeline.process_egress.await_count == 1
+		assert 7 in manager_setup._delivered_unrecorded
+		assert not any("retries" in str(c.args[0]) for c in cursor.execute.call_args_list)
+
+		# next poll: the DB is back — only record SENT, never send again
+		cursor.execute.side_effect = None
+		manager_setup._process_outbox_row_contained(loop, cursor, row)
+	finally:
+		loop.close()
+	assert manager_setup.pipeline.process_egress.await_count == 1
+	cursor.execute.assert_called_with("UPDATE outbox SET status = 'SENT' WHERE id = ?", (7,))
+	assert 7 not in manager_setup._delivered_unrecorded
+
+
+def test_redrive_reinserts_purged_outbox_rows_and_reports_missing(tmp_path):
+	import sqlite3
+
+	from neon_link.core.manager import redrive_outbox_dead_letters
+
+	conn = _real_conn(tmp_path)
+	conn.execute(
+		"INSERT INTO dead_letters (original_table, original_id, channel, channel_user_id, payload) VALUES ('outbox', 99, 'telegram', 'u', ?)",
+		('{"text":"hola"}',),
+	)
+	conn.commit()
+	assert redrive_outbox_dead_letters(conn, [1, 42]) == (1, [42])
+	c = sqlite3.connect(str(tmp_path / "events.db"))
+	assert c.execute("SELECT channel, status, payload FROM outbox").fetchall() == [("telegram", "PENDING", '{"text":"hola"}')]
+	assert c.execute("SELECT COUNT(*) FROM dead_letters").fetchone()[0] == 0
+	c.close()
