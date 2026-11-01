@@ -22,12 +22,12 @@ informe:
 - El puerto exige `--broker` + `REDPILL_BROKER=1` para no abrir el push a un CLI
 cualquiera. El plugin lo pone en el entorno del subproceso.
 
-Límite honesto
---------------
-`red-pill session deliver` puede tardar (abre un turno en el arnés). El poller
-del manager es síncrono; un `soul` lento retrasa el resto de canales. Para el
-primer slice se acepta con timeout (`NEON_LINK_SOUL_TIMEOUT_S`, 120 s). Si el
-volumen crece, se mueve a un worker por canal.
+Aislamiento de egress
+-------------------
+`red-pill session deliver` puede tardar (abre un turno en el arnés). Por eso el
+canal `soul` tiene su **propio hilo de egress**: el poller principal del manager
+excluye `channel='soul'`, y un `soul` lento no retrasa Telegram/Firebase/rings.
+El timeout sigue existiendo (`NEON_LINK_SOUL_TIMEOUT_S`, 120 s).
 """
 
 from __future__ import annotations
@@ -39,6 +39,7 @@ import os
 import shlex
 import subprocess
 import threading
+import time
 
 from neon_link.models.network import NetworkEvent
 from neon_link.plugins.base import NetworkPlugin, PermanentEgressError
@@ -60,13 +61,16 @@ class SoulHub(NetworkPlugin):
 		*,
 		redpill_cmd: str | None = None,
 		timeout_s: float | None = None,
+		manager=None,
 	):
 		super().__init__(CHANNEL, identity_manager)
 		self.redpill_cmd: str = redpill_cmd or os.getenv("NEON_LINK_SOUL_REDPILL") or "red-pill"
 		self.timeout_s: float = float(timeout_s or os.getenv("NEON_LINK_SOUL_TIMEOUT_S") or "120")
 		self.reconcile_s: float = float(os.getenv("NEON_LINK_SOUL_RECONCILE_S") or "60")
+		self.manager = manager
 		self._stop = threading.Event()
 		self._thread: threading.Thread | None = None
+		self._egress_thread: threading.Thread | None = None
 
 	async def start(self):
 		# Hilo propio: el daemon no mantiene el event loop de asyncio corriendo
@@ -74,14 +78,52 @@ class SoulHub(NetworkPlugin):
 		if self.reconcile_s > 0 and self._thread is None:
 			self._thread = threading.Thread(target=self._reconcile_loop, daemon=True)
 			self._thread.start()
+		if self.manager is not None and self._egress_thread is None:
+			self._egress_thread = threading.Thread(target=self._egress_loop, daemon=True)
+			self._egress_thread.start()
 		logger.info("[SoulHub] canal interno listo (sin red)")
 
 	async def stop(self):
 		self._stop.set()
-		if self._thread is not None:
-			self._thread.join(timeout=2.0)
-			self._thread = None
+		for thread in (self._thread, self._egress_thread):
+			if thread is not None:
+				thread.join(timeout=2.0)
+		self._thread = None
+		self._egress_thread = None
 		logger.info("[SoulHub] canal interno detenido")
+
+	def _egress_loop(self) -> None:
+		"""Procesa solo `channel='soul'`; el poller principal ya lo excluye."""
+		import sqlite3
+
+		from neon_link.db import get_connection
+
+		loop = asyncio.new_event_loop()
+		try:
+			while not self._stop.wait(1.0):
+				conn = None
+				try:
+					conn = get_connection()
+					conn.row_factory = sqlite3.Row
+					cursor = conn.cursor()
+					row = cursor.execute(
+						"SELECT *, (julianday('now') - julianday(created_at)) * 86400.0 AS age_s"
+						" FROM outbox WHERE status = 'PENDING' AND channel = 'soul'"
+						" AND (next_attempt_at IS NULL OR next_attempt_at <= ?)"
+						" ORDER BY created_at ASC, id ASC LIMIT 1",
+						(time.time(),),
+					).fetchone()
+					if row is None:
+						continue
+					self.manager._process_outbox_row_contained(loop, cursor, row)
+					conn.commit()
+				except Exception as e:
+					logger.debug(f"[SoulHub] egress soul falló: {e}")
+				finally:
+					if conn is not None:
+						conn.close()
+		finally:
+			loop.close()
 
 	def _reconcile_loop(self) -> None:
 		"""Despierta `mission_events -> outbox` periódicamente (no bloquea egress)."""

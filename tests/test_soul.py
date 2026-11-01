@@ -185,3 +185,36 @@ def test_reconcile_once_invoca_el_cli(tmp_path):
 	hub = SoulHub(MagicMock(), redpill_cmd=str(script), timeout_s=5)
 	hub._reconcile_once()
 	assert "coro reconcile" in args_file.read_text()
+
+
+def test_egress_soul_tiene_hilo_propio(tmp_path, monkeypatch):
+	"""El poller principal excluye soul; el plugin lo procesa en su hilo."""
+	import sqlite3
+	import threading
+
+	from neon_link import db as neon_db
+
+	db_path = tmp_path / "events.db"
+	neon_db.set_db_path(str(db_path))
+	neon_db.init_db()
+	con = sqlite3.connect(str(db_path))
+	con.execute(
+		"INSERT INTO outbox (message_id, channel, channel_user_id, payload) VALUES (?, ?, ?, ?)",
+		("e" * 32, "soul", "soul-1", json.dumps(_envelope())),
+	)
+	con.commit()
+	con.close()
+
+	called = threading.Event()
+
+	class FakeManager:
+		def _process_outbox_row_contained(self, loop, cursor, row):
+			called.set()
+
+	monkeypatch.setenv("NEON_LINK_SOUL_RECONCILE_S", "0")
+	hub = SoulHub(MagicMock(), manager=FakeManager(), redpill_cmd="true", timeout_s=1)
+	asyncio.run(hub.start())
+	try:
+		assert called.wait(timeout=3.0), "el hilo de egress soul no procesó la fila"
+	finally:
+		asyncio.run(hub.stop())

@@ -152,7 +152,7 @@ def start_daemon():
 		try:
 			from neon_link.plugins.soul import SoulHub
 
-			s_hub = SoulHub(id_mgr)
+			s_hub = SoulHub(id_mgr, manager=manager)
 			manager.register(s_hub)
 		except Exception as e:
 			logger.error(f"Failed to start Soul Hub: {e}")
