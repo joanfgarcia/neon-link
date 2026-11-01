@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.1] - 2026-11-01
+
+### Changed
+- **El canal `soul` tiene su propio hilo de egress**: el poller principal excluye
+  `channel='soul'` y `SoulHub` procesa esas filas en un hilo aparte. Un
+  `session deliver` lento ya no retrasa Telegram/Firebase/rings. El timeout por
+  entrega sigue en `NEON_LINK_SOUL_TIMEOUT_S`.
+
+### Fixed
+- **Test de egress soul**: cubre el hilo propio y el procesado de una fila
+  `soul` sin pasar por el poller principal.
+
 ## [0.7.0] - 2026-11-01
 
 ### Added

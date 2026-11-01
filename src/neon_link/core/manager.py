@@ -105,7 +105,7 @@ class PluginManager:
 				cursor = conn.cursor()
 				cursor.execute(
 					"SELECT *, (julianday('now') - julianday(created_at)) * 86400.0 AS age_s FROM outbox "
-					"WHERE status = 'PENDING' AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY created_at ASC, id ASC",
+					"WHERE status = 'PENDING' AND channel != 'soul' AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY created_at ASC, id ASC",
 					(time.time(),),
 				)
 				rows = cursor.fetchall()
