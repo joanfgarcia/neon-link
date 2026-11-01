@@ -169,3 +169,19 @@ def test_manager_passes_raw_payload_for_soul():
 	manager._process_outbox_row(asyncio.new_event_loop(), MagicMock(), row)
 	assert captured["recipient"] == "soul-1"
 	assert json.loads(captured["text"])["event_id"] == "e" * 32
+
+
+def test_reconcile_once_invoca_el_cli(tmp_path):
+	script = tmp_path / "redpill-reconcile"
+	args_file = tmp_path / "args.txt"
+	script.write_text(
+		"#!/usr/bin/env python3\n"
+		"import json, pathlib, sys\n"
+		f"pathlib.Path({str(args_file)!r}).write_text(' '.join(sys.argv[1:]))\n"
+		"print(json.dumps({'published': 1, 'failed': 0, 'scanned': 1}))\n",
+		encoding="utf-8",
+	)
+	script.chmod(0o755)
+	hub = SoulHub(MagicMock(), redpill_cmd=str(script), timeout_s=5)
+	hub._reconcile_once()
+	assert "coro reconcile" in args_file.read_text()

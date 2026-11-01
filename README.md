@@ -54,7 +54,9 @@ metadata), and the plugin calls red-pill's local port
 (`red-pill session deliver --event <id> --broker --json`). The text stays in
 `mission_events`; the outbox only stores the envelope. Delivery state remains in
 `outbox`/`dead_letters`/`redrive`, exactly like external channels. See
-`docs/GUIDES/USAGE.md` and red-pill's `CORO_PROTOCOL.md` §7.
+`docs/GUIDES/USAGE.md` and red-pill's `CORO_PROTOCOL.md` §7. The plugin also
+runs `red-pill coro reconcile` every 60 s (`NEON_LINK_SOUL_RECONCILE_S`, 0 disables)
+to publish messages that missed the outbox.
 
 For more details, check our [Usage Guide](docs/GUIDES/USAGE.md) and [Examples](docs/EXAMPLES/CURL_EXAMPLES.md).
 
@@ -77,7 +79,9 @@ outbox lleva el sobre (`event_id`, `continuity_id`, misión/hilo) y el plugin ll
 al puerto local de red-pill (`red-pill session deliver --event <id> --broker
 --json`). El texto sigue viviendo en `mission_events`; el outbox solo guarda el
 sobre. El estado de entrega queda en `outbox`/`dead_letters`/`redrive`, igual que
-en los canales externos.
+en los canales externos. El plugin lanza `red-pill coro reconcile` cada 60 s
+(`NEON_LINK_SOUL_RECONCILE_S`, 0 lo desactiva) para publicar mensajes que se
+quedaron sin sobre.
 
 ### Inicio Rápido
 Para inicializar la configuración en tu directorio de usuario (Agnóstico al SO):

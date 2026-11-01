@@ -37,6 +37,8 @@ import json
 import logging
 import os
 import shlex
+import subprocess
+import threading
 
 from neon_link.models.network import NetworkEvent
 from neon_link.plugins.base import NetworkPlugin, PermanentEgressError
@@ -60,14 +62,51 @@ class SoulHub(NetworkPlugin):
 		timeout_s: float | None = None,
 	):
 		super().__init__(CHANNEL, identity_manager)
-		self.redpill_cmd = redpill_cmd or os.getenv("NEON_LINK_SOUL_REDPILL", "red-pill")
-		self.timeout_s = float(timeout_s or os.getenv("NEON_LINK_SOUL_TIMEOUT_S", "120"))
+		self.redpill_cmd: str = redpill_cmd or os.getenv("NEON_LINK_SOUL_REDPILL") or "red-pill"
+		self.timeout_s: float = float(timeout_s or os.getenv("NEON_LINK_SOUL_TIMEOUT_S") or "120")
+		self.reconcile_s: float = float(os.getenv("NEON_LINK_SOUL_RECONCILE_S") or "60")
+		self._stop = threading.Event()
+		self._thread: threading.Thread | None = None
 
 	async def start(self):
+		# Hilo propio: el daemon no mantiene el event loop de asyncio corriendo
+		# entre pulsos, así que un create_task aquí nunca se ejecutaría.
+		if self.reconcile_s > 0 and self._thread is None:
+			self._thread = threading.Thread(target=self._reconcile_loop, daemon=True)
+			self._thread.start()
 		logger.info("[SoulHub] canal interno listo (sin red)")
 
 	async def stop(self):
+		self._stop.set()
+		if self._thread is not None:
+			self._thread.join(timeout=2.0)
+			self._thread = None
 		logger.info("[SoulHub] canal interno detenido")
+
+	def _reconcile_loop(self) -> None:
+		"""Despierta `mission_events -> outbox` periódicamente (no bloquea egress)."""
+		while not self._stop.wait(max(1.0, self.reconcile_s)):
+			try:
+				self._reconcile_once()
+			except Exception as e:
+				logger.debug(f"[SoulHub] reconcile falló: {e}")
+
+	def _reconcile_once(self) -> None:
+		cmd = [*shlex.split(self.redpill_cmd), "coro", "reconcile", "--json", "--hours", "24"]
+		try:
+			res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+		except Exception as e:
+			logger.debug(f"[SoulHub] no se pudo lanzar reconcile: {e}")
+			return
+		if res.returncode != 0:
+			logger.warning(f"[SoulHub] reconcile rc={res.returncode}: {(res.stderr or '')[:160]}")
+			return
+		try:
+			report = json.loads(res.stdout or "{}")
+		except Exception:
+			return
+		if report.get("published"):
+			logger.info(f"[SoulHub] reconcile: publicados={report.get('published')} fallidos={report.get('failed')} leídos={report.get('scanned')}")
 
 	async def fetch_key_package(self, agent_id: str) -> bytes | None:
 		"""No hay red ni MLS: el canal es local."""
@@ -115,10 +154,7 @@ class SoulHub(NetworkPlugin):
 			return False
 
 		if proc.returncode != 0:
-			logger.warning(
-				f"[SoulHub] red-pill rc={proc.returncode} para {event_id[:12]}: "
-				f"{(stderr or b'').decode('utf-8', 'replace')[:200]}"
-			)
+			logger.warning(f"[SoulHub] red-pill rc={proc.returncode} para {event_id[:12]}: {(stderr or b'').decode('utf-8', 'replace')[:200]}")
 			return False
 
 		report = self._report(stdout)

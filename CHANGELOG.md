@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-11-01
+
+### Added
+- **Canal interno `soul` (S2.1/S2.2, red-pill)**: `ENABLE_SOUL=true` registra un
+  plugin **local** (`SoulHub`) que entrega los sobres del coro al cuerpo vivo de
+  un alma. No usa red ni MLS: la fila del `outbox` lleva el sobre (`event_id`,
+  `continuity_id`, misión/hilo) y el plugin llama al puerto local de red-pill
+  (`session deliver --event <id> --broker --json`). El texto sigue en
+  `mission_events`; el `outbox` solo guarda el sobre.
+- **Reconciliador**: el plugin lanza `red-pill coro reconcile` cada 60 s
+  (`NEON_LINK_SOUL_RECONCILE_S`, 0 lo desactiva) para publicar los mensajes que
+  se quedaron sin sobre.
+- **`raw_payload`** en el manager: los canales locales reciben el sobre completo,
+  no el campo `text` de los canales conversacionales.
+- **Config**: `ENABLE_SOUL`, `NEON_LINK_SOUL_REDPILL`, `NEON_LINK_SOUL_TIMEOUT_S`.
+
+### Fixed
+- **Aislamiento de tests**: `ENABLE_SOUL=false` en los tests de CLI; sin él, el
+  `.env` del operador arrancaba el daemon y el test de "sin canales" colgaba.
+
+### Notes
+- La cara externa (Telegram/Firebase/rings) no cambia. `soul` es un canal más
+  del mismo `outbox`/DLQ/`redrive`, con espacio de nombres propio.
+
 ## [0.6.3] - 2026-10-02
 
 ### Fixed
