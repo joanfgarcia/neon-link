@@ -9,6 +9,8 @@ from neon_link.cli import main
 def test_cli_no_channels(monkeypatch):
 	monkeypatch.setenv("ENABLE_TELEGRAM", "false")
 	monkeypatch.setenv("ENABLE_FIREBASE", "false")
+	monkeypatch.setenv("ENABLE_SOUL", "false")
+	monkeypatch.setenv("NEON_LINK_SOUL_ENABLED", "false")
 	monkeypatch.setenv("NEON_LINK_AGENT_ID", "test_agent")
 	monkeypatch.setattr("sys.argv", ["neon-link", "start"])
 	with pytest.raises(SystemExit) as exc_info:
@@ -48,7 +50,16 @@ def test_cli_exceptions():
 	import neon_link.cli as cli
 
 	with (
-		patch.dict(os.environ, {"ENABLE_TELEGRAM": "true", "ENABLE_FIREBASE": "true", "NEON_LINK_AGENT_ID": "test_agent"}),
+		patch.dict(
+			os.environ,
+			{
+				"ENABLE_TELEGRAM": "true",
+				"ENABLE_FIREBASE": "true",
+				"ENABLE_SOUL": "false",
+				"NEON_LINK_SOUL_ENABLED": "false",
+				"NEON_LINK_AGENT_ID": "test_agent",
+			},
+		),
 		patch("sys.argv", ["neon-link", "start"]),
 		patch("neon_link.plugins.telegram.TelegramHub", side_effect=Exception("error")),
 		patch("neon_link.plugins.firebase.FirebaseHub", side_effect=Exception("error")),
@@ -65,7 +76,16 @@ def test_cli_keyboard_interrupt():
 	import neon_link.cli as cli
 
 	with (
-		patch.dict(os.environ, {"ENABLE_TELEGRAM": "true", "ENABLE_FIREBASE": "false", "NEON_LINK_AGENT_ID": "test_agent"}),
+		patch.dict(
+			os.environ,
+			{
+				"ENABLE_TELEGRAM": "true",
+				"ENABLE_FIREBASE": "false",
+				"ENABLE_SOUL": "false",
+				"NEON_LINK_SOUL_ENABLED": "false",
+				"NEON_LINK_AGENT_ID": "test_agent",
+			},
+		),
 		patch("sys.argv", ["neon-link", "start"]),
 		patch("neon_link.plugins.telegram.TelegramHub"),
 		patch("neon_link.cli.time.sleep", side_effect=KeyboardInterrupt()),

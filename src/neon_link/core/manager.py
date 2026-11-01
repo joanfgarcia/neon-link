@@ -157,7 +157,10 @@ class PluginManager:
 			raise PermanentEgressError(f"corrupt payload: {e}") from e
 		if not isinstance(payload_json, dict):
 			raise PermanentEgressError(f"payload is not an object: {type(payload_json).__name__}")
-		text = payload_json.get("text", "No text provided")
+		# Los canales locales (p.ej. `soul`) necesitan el sobre completo, no el
+		# campo `text` de los canales conversacionales. El plugin lo declara con
+		# `raw_payload = True`.
+		text = row["payload"] if getattr(plugin, "raw_payload", False) is True else payload_json.get("text", "No text provided")
 		session_id = row["channel_user_id"]
 
 		# Translate UUID session back to the real channel_user_id; ids without a

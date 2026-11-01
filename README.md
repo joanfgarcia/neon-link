@@ -46,6 +46,18 @@ t_hub = TelegramHub(identity_manager, bot_token="TOKEN", allowed_user_id="ID")
 **Outbox delivery & dead letters:**
 A failed send is retried with exponential backoff (`NEON_EGRESS_BACKOFF_BASE_S`=5 s, doubling up to `NEON_EGRESS_BACKOFF_MAX_S`=300 s) and moved to `dead_letters` only once it is older than `NEON_EGRESS_MAX_AGE_H` (24 h) after at least 8 attempts; undeliverable messages (corrupt payload, recipient rejected by the network) go there at once. `uv run neon-link redrive --all` (or `redrive <dead_letter_id> ...`) puts them back in the queue.
 
+**Soul channel (internal messaging, S2.1):**
+`ENABLE_SOUL=true` registers a local plugin (`soul`) that delivers red-pill coro
+envelopes to the live body of a soul. It does **not** use the network or MLS: the
+outbox row carries the envelope (`event_id`, `continuity_id`, mission/thread
+metadata), and the plugin calls red-pill's local port
+(`red-pill session deliver --event <id> --broker --json`). The text stays in
+`mission_events`; the outbox only stores the envelope. Delivery state remains in
+`outbox`/`dead_letters`/`redrive`, exactly like external channels. See
+`docs/GUIDES/USAGE.md` and red-pill's `CORO_PROTOCOL.md` §7. The plugin also
+runs `red-pill coro reconcile` every 60 s (`NEON_LINK_SOUL_RECONCILE_S`, 0 disables)
+to publish messages that missed the outbox.
+
 For more details, check our [Usage Guide](docs/GUIDES/USAGE.md) and [Examples](docs/EXAMPLES/CURL_EXAMPLES.md).
 
 ---
@@ -59,6 +71,17 @@ Neon-Link es un microservicio desacoplado y sin estado (stateless) diseñado par
 2. **Multi-Tenant**: Una única instancia de Neon-Link puede multiplexar conexiones para múltiples Identidades de Agente.
 3. **Protocolo de Silencio**: El servicio no registra contenidos de mensajes sensibles en `stdout`.
 4. **Offline First**: Los mensajes se desencriptan y se encolan en un inbox local y rápido en memoria, para que el sistema principal los consulte a su propio ritmo.
+
+### Canal `soul` (mensajería interna, S2.1)
+Con `ENABLE_SOUL=true` se registra un plugin local (`soul`) que entrega los sobres
+del coro de red-pill al cuerpo vivo de un alma. **No** usa red ni MLS: la fila del
+outbox lleva el sobre (`event_id`, `continuity_id`, misión/hilo) y el plugin llama
+al puerto local de red-pill (`red-pill session deliver --event <id> --broker
+--json`). El texto sigue viviendo en `mission_events`; el outbox solo guarda el
+sobre. El estado de entrega queda en `outbox`/`dead_letters`/`redrive`, igual que
+en los canales externos. El plugin lanza `red-pill coro reconcile` cada 60 s
+(`NEON_LINK_SOUL_RECONCILE_S`, 0 lo desactiva) para publicar mensajes que se
+quedaron sin sobre.
 
 ### Inicio Rápido
 Para inicializar la configuración en tu directorio de usuario (Agnóstico al SO):

@@ -102,8 +102,9 @@ def start_daemon():
 	enable_telegram = os.environ.get("ENABLE_TELEGRAM", "false").lower() == "true"
 	enable_firebase = os.environ.get("ENABLE_FIREBASE", "false").lower() == "true"
 	enable_rings = os.environ.get("ENABLE_RINGS", "false").lower() == "true"
+	enable_soul = os.environ.get("ENABLE_SOUL", os.environ.get("NEON_LINK_SOUL_ENABLED", "false")).lower() in ("1", "true", "yes")
 
-	if not enable_telegram and not enable_firebase and not enable_rings:
+	if not enable_telegram and not enable_firebase and not enable_rings and not enable_soul:
 		logger.error("No active channels configured in .env. Exiting.")
 		sys.exit(1)
 
@@ -145,6 +146,16 @@ def start_daemon():
 			manager.register(r_hub)
 		except Exception as e:
 			logger.error(f"Failed to start Rings Hub: {e}")
+
+	if enable_soul:
+		logger.info("Initializing Soul Hub (canal interno)...")
+		try:
+			from neon_link.plugins.soul import SoulHub
+
+			s_hub = SoulHub(id_mgr)
+			manager.register(s_hub)
+		except Exception as e:
+			logger.error(f"Failed to start Soul Hub: {e}")
 
 	if not manager.plugins:
 		logger.error("All enabled hubs failed to start. Exiting.")
