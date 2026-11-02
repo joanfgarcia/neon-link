@@ -10,3 +10,6 @@ __pycache__/
 src/neon_link/inbox.db
 storage/
 *.log
+
+# Memoria local del workspace (no se versiona)
+.red-pill/
