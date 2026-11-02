@@ -31,8 +31,7 @@ def conn():
 
 def _insert(conn, channel="telegram", deliver_after=None, next_attempt_at=None, created_at=None, user="u1"):
 	conn.execute(
-		"INSERT INTO outbox (channel, channel_user_id, payload, deliver_after, next_attempt_at, created_at)"
-		" VALUES (?, ?, '{}', ?, ?, ?)",
+		"INSERT INTO outbox (channel, channel_user_id, payload, deliver_after, next_attempt_at, created_at) VALUES (?, ?, '{}', ?, ?, ?)",
 		(channel, user, deliver_after, next_attempt_at, created_at),
 	)
 	conn.commit()
