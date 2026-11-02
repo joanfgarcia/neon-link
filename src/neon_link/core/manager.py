@@ -103,12 +103,7 @@ class PluginManager:
 				conn = get_connection()
 				conn.row_factory = sqlite3.Row
 				cursor = conn.cursor()
-				cursor.execute(
-					"SELECT *, (julianday('now') - julianday(created_at)) * 86400.0 AS age_s FROM outbox "
-					"WHERE status = 'PENDING' AND channel != 'soul' AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY created_at ASC, id ASC",
-					(time.time(),),
-				)
-				rows = cursor.fetchall()
+				rows = due_outbox_rows(cursor, time.time())
 
 				for row in rows:
 					self._process_outbox_row_contained(loop, cursor, row)
@@ -218,6 +213,39 @@ class PluginManager:
 		return self.plugins[name]
 
 
+def due_outbox_rows(cursor, now: float, *, channel: str | None = None, limit: int | None = None) -> list:
+	"""Filas PENDING que ya vencen (RFC-OBS-006, entrega diferida).
+
+	Respeta DOS relojes distintos:
+	- `next_attempt_at`: backoff de un reintento (un fallo anterior).
+	- `deliver_after`: la fecha en que el mensaje debe entregarse. Antes no se
+	selecciona y **no cuenta como reintento**.
+
+	`channel=None` es el poll general (excluye `soul`, que tiene el suyo);
+	`channel="soul"` es el del SoulHub.
+	"""
+	where = "status = 'PENDING'"
+	params: list = []
+	if channel is None:
+		where += " AND channel != 'soul'"
+	else:
+		where += " AND channel = ?"
+		params.append(channel)
+	where += " AND (next_attempt_at IS NULL OR next_attempt_at <= ?)"
+	where += " AND (deliver_after IS NULL OR deliver_after <= ?)"
+	params += [now, now]
+	sql = (
+		"SELECT *, (julianday('now') - julianday(CASE WHEN deliver_after IS NOT NULL "
+		"THEN datetime(deliver_after, 'unixepoch') ELSE created_at END)) * 86400.0 AS age_s "
+		f"FROM outbox WHERE {where} ORDER BY created_at ASC, id ASC"
+	)
+	if limit:
+		sql += " LIMIT ?"
+		params.append(int(limit))
+	cursor.execute(sql, tuple(params))
+	return cursor.fetchall()
+
+
 def _row_age_s(row) -> float:
 	"""Age of an outbox row in seconds (`age_s` computed by the poll query)."""
 	try:
@@ -246,7 +274,7 @@ def redrive_outbox_dead_letters(conn, ids: list[int] | None = None) -> tuple[int
 	requeued = 0
 	for letter_id, outbox_id, channel, channel_user_id, payload in letters:
 		cur = conn.execute(
-			"UPDATE outbox SET status = 'PENDING', retries = 0, next_attempt_at = NULL, created_at = CURRENT_TIMESTAMP "
+			"UPDATE outbox SET status = 'PENDING', retries = 0, next_attempt_at = NULL, deliver_after = NULL, created_at = CURRENT_TIMESTAMP "
 			"WHERE id = ? AND status = 'FAILED'",
 			(outbox_id,),
 		)

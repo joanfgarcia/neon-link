@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2026-11-02
+
+### Added
+- **Entrega diferida (`deliver_after`)**: una fila del outbox puede nacer con fecha
+  de entrega. Antes de esa fecha no se selecciona — y no cuenta como reintento: el
+  poll general (`due_outbox_rows`) y el del canal `soul` la respetan por igual.
+- La edad que decide el dead-letter se cuenta **desde `deliver_after`** cuando
+  existe: un mensaje programado a 14 días ya no muere por "viejo" (24 h) en su
+  primer fallo.
+- `neon-link redrive` limpia `deliver_after`: reenviar un dead letter significa
+  "ahora", no "el día que estaba previsto".
+
 ## [0.7.1] - 2026-11-01
 
 ### Changed

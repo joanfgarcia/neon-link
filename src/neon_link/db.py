@@ -60,6 +60,27 @@ def with_retry(max_retries=3, base_delay=0.5):
 	return decorator
 
 
+def _add_column(cursor, ddl: str, *, attempts: int = 4) -> bool:
+	"""Migración aditiva que no se pierde por un lock transitorio.
+
+	`contextlib.suppress(OperationalError)` escondía un ALTER fallido con la DB
+	ocupada: la app arrancaba sin la columna y la función se degradaba en silencio.
+	"""
+	for attempt in range(attempts):
+		try:
+			cursor.execute(ddl)
+			return True
+		except sqlite3.OperationalError as exc:
+			text = str(exc).lower()
+			if "duplicate column" in text or "already exists" in text:
+				return True
+			if attempt == attempts - 1:
+				logger.warning(f"[db] migración no aplicada ({ddl}): {exc}")
+				return False
+			time.sleep(0.25 * (attempt + 1))
+	return False
+
+
 def get_connection():
 	"""Returns a SQLite connection configured for WAL mode."""
 	db_path = get_db_path()
@@ -107,6 +128,7 @@ def init_db():
 			status TEXT DEFAULT 'PENDING',  -- 'PENDING', 'SENT', 'FAILED'
 			retries INTEGER DEFAULT 0,
 			next_attempt_at REAL,           -- egress backoff (epoch s); NULL = due now
+			deliver_after REAL,             -- entrega diferida (epoch s); NULL = ya
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	""")
@@ -114,18 +136,16 @@ def init_db():
 	# Add columns if they do not exist (migration)
 	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE inbox ADD COLUMN message_id TEXT UNIQUE")
-	with contextlib.suppress(sqlite3.OperationalError):
-		cursor.execute("ALTER TABLE outbox ADD COLUMN message_id TEXT UNIQUE")
+	_add_column(cursor, "ALTER TABLE outbox ADD COLUMN message_id TEXT UNIQUE")
 	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE telegram_sessions ADD COLUMN cascade_type TEXT DEFAULT 'interactive'")
 	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE telegram_sessions ADD COLUMN model TEXT")  # D1: modelo respondedor de sesión (RFC §2A)
 	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE telegram_sessions ADD COLUMN backend TEXT")  # D1/D8: backend del catálogo, no por prefijo
-	with contextlib.suppress(sqlite3.OperationalError):
-		cursor.execute("ALTER TABLE outbox ADD COLUMN retries INTEGER DEFAULT 0")
-	with contextlib.suppress(sqlite3.OperationalError):
-		cursor.execute("ALTER TABLE outbox ADD COLUMN next_attempt_at REAL")  # egress backoff (epoch s)
+	_add_column(cursor, "ALTER TABLE outbox ADD COLUMN retries INTEGER DEFAULT 0")
+	_add_column(cursor, "ALTER TABLE outbox ADD COLUMN next_attempt_at REAL")  # egress backoff (epoch s)
+	_add_column(cursor, "ALTER TABLE outbox ADD COLUMN deliver_after REAL")  # entrega diferida (epoch s)
 
 	# DEAD LETTERS: undeliverable or aged-out messages (`neon-link redrive` requeues outbox ones)
 	cursor.execute("""

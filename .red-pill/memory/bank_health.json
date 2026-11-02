@@ -1,0 +1,24 @@
+{
+  "workspace": "neon-link",
+  "generated_at": "2026-09-03T18:40:27",
+  "apply": false,
+  "metrics": {
+    "active_files": 3,
+    "active_bytes": 654,
+    "biggest_file": {
+      "path": "MEMORY.md",
+      "bytes": 443
+    }
+  },
+  "index": {
+    "refs_total": 2,
+    "broken_refs": [],
+    "orphans": [],
+    "non_canonical_refs": []
+  },
+  "duplicates": [],
+  "archived": [],
+  "archive_candidates": [],
+  "archive_suppressed_no_index": false,
+  "thresholds_tripped": []
+}
