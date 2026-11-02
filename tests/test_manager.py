@@ -158,7 +158,7 @@ def _real_conn(tmp_path):
 		CREATE TABLE outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, message_id TEXT,
 			channel TEXT, channel_user_id TEXT, payload TEXT,
 			status TEXT DEFAULT 'PENDING', retries INTEGER DEFAULT 0, next_attempt_at REAL,
-			created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+			deliver_after REAL, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 		CREATE TABLE dead_letters (id INTEGER PRIMARY KEY AUTOINCREMENT, original_table TEXT,
 			original_id INTEGER, channel TEXT, channel_user_id TEXT, payload TEXT, error_reason TEXT);
 		"""

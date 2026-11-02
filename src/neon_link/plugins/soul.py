@@ -106,15 +106,12 @@ class SoulHub(NetworkPlugin):
 					conn = get_connection()
 					conn.row_factory = sqlite3.Row
 					cursor = conn.cursor()
-					row = cursor.execute(
-						"SELECT *, (julianday('now') - julianday(created_at)) * 86400.0 AS age_s"
-						" FROM outbox WHERE status = 'PENDING' AND channel = 'soul'"
-						" AND (next_attempt_at IS NULL OR next_attempt_at <= ?)"
-						" ORDER BY created_at ASC, id ASC LIMIT 1",
-						(time.time(),),
-					).fetchone()
-					if row is None:
+					from neon_link.core.manager import due_outbox_rows
+
+					pending = due_outbox_rows(cursor, time.time(), channel="soul", limit=1)
+					if not pending:
 						continue
+					row = pending[0]
 					self.manager._process_outbox_row_contained(loop, cursor, row)
 					conn.commit()
 				except Exception as e:

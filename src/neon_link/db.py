@@ -107,6 +107,7 @@ def init_db():
 			status TEXT DEFAULT 'PENDING',  -- 'PENDING', 'SENT', 'FAILED'
 			retries INTEGER DEFAULT 0,
 			next_attempt_at REAL,           -- egress backoff (epoch s); NULL = due now
+			deliver_after REAL,             -- entrega diferida (epoch s); NULL = ya
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	""")
@@ -126,6 +127,8 @@ def init_db():
 		cursor.execute("ALTER TABLE outbox ADD COLUMN retries INTEGER DEFAULT 0")
 	with contextlib.suppress(sqlite3.OperationalError):
 		cursor.execute("ALTER TABLE outbox ADD COLUMN next_attempt_at REAL")  # egress backoff (epoch s)
+	with contextlib.suppress(sqlite3.OperationalError):
+		cursor.execute("ALTER TABLE outbox ADD COLUMN deliver_after REAL")  # entrega diferida (epoch s)
 
 	# DEAD LETTERS: undeliverable or aged-out messages (`neon-link redrive` requeues outbox ones)
 	cursor.execute("""
